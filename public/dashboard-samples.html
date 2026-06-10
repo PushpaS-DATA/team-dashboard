@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard Concepts</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f7f4;color:#1a2e26;}
+h1{font-size:18px;font-weight:700;padding:24px 32px 8px;color:#1a2e26;}
+.subtitle{font-size:13px;color:#5a7a6e;padding:0 32px 24px;}
+.concept{margin:0 32px 48px;border-radius:16px;overflow:hidden;border:2px solid #d4e8df;}
+.concept-label{display:inline-block;background:#4a9e7f;color:#fff;font-size:11px;font-weight:700;padding:5px 14px;border-radius:99px;margin:0 0 14px;}
+.concept-title{font-size:17px;font-weight:700;margin-bottom:4px;}
+.concept-desc{font-size:13px;color:#5a7a6e;margin-bottom:20px;}
+.concept-meta{padding:20px 24px;background:#fff;border-bottom:1px solid #e8f4ef;}
+
+/* ─── CONCEPT A: Command Center ─── */
+.ca-hero{background:linear-gradient(135deg,#1a3d30 0%,#2d6b50 100%);padding:28px 32px;color:#fff;}
+.ca-greeting{font-size:22px;font-weight:700;margin-bottom:4px;}
+.ca-date{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:20px;}
+.ca-pills{display:flex;gap:12px;flex-wrap:wrap;}
+.ca-pill{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 18px;text-align:center;}
+.ca-pill .pv{font-size:22px;font-weight:800;line-height:1;}
+.ca-pill .pl{font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;}
+.ca-body{background:#fff;display:grid;grid-template-columns:1fr 300px;}
+.ca-left{padding:24px 28px;border-right:1px solid #e8f4ef;}
+.ca-left h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#5a7a6e;margin-bottom:16px;}
+.ca-goal{margin-bottom:14px;}
+.ca-goal-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
+.ca-goal-name{font-size:14px;font-weight:600;}
+.ca-goal-pct{font-size:13px;font-weight:700;color:#4a9e7f;}
+.ca-bar-bg{height:7px;background:#e8f4ef;border-radius:99px;overflow:hidden;}
+.ca-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,#4a9e7f,#3b82f6);}
+.ca-bar.done{background:linear-gradient(90deg,#10b981,#4a9e7f);}
+.ca-goal-meta{display:flex;gap:8px;margin-top:5px;}
+.ca-right{padding:20px;}
+.ca-right h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#5a7a6e;margin-bottom:14px;}
+.ca-timeline{display:flex;flex-direction:column;gap:0;}
+.ca-titem{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid #e8f4ef;}
+.ca-titem:last-child{border-bottom:none;}
+.ca-tdot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;}
+.ca-tdot.red{background:#ef4444;}
+.ca-tdot.yellow{background:#f59e0b;}
+.ca-tdot.green{background:#10b981;}
+.ca-ttext{font-size:12px;}
+.ca-ttext strong{display:block;font-size:13px;font-weight:600;color:#1a2e26;}
+.ca-ttext span{color:#5a7a6e;}
+.badge-sm{display:inline-flex;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:600;}
+.ns{background:#f0f7f4;color:#5a7a6e;}
+.ip{background:#fef3c7;color:#b45309;}
+.done-b{background:#d1fae5;color:#065f46;}
+
+/* ─── CONCEPT B: Bento Grid ─── */
+.cb-wrap{background:#f0f7f4;padding:24px;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:14px;}
+.cb-tile{background:#fff;border-radius:14px;padding:20px;border:1px solid #d4e8df;}
+.cb-tile.wide{grid-column:span 2;}
+.cb-tile.tall{grid-row:span 2;}
+.cb-tile.accent{background:linear-gradient(135deg,#1a3d30,#2d6b50);color:#fff;border:none;}
+.cb-tile.blue{background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;border:none;}
+.cb-tile h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;opacity:.6;margin-bottom:8px;}
+.cb-tile.accent h4,.cb-tile.blue h4{opacity:.7;}
+.cb-big-num{font-size:48px;font-weight:800;line-height:1;}
+.cb-big-sub{font-size:13px;opacity:.7;margin-top:4px;}
+.cb-ring-wrap{display:flex;align-items:center;gap:16px;}
+.cb-ring{position:relative;width:80px;height:80px;flex-shrink:0;}
+.cb-ring svg{transform:rotate(-90deg);}
+.cb-ring-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#4a9e7f;}
+.cb-ring-info h3{font-size:16px;font-weight:700;}
+.cb-ring-info p{font-size:12px;color:#5a7a6e;margin-top:3px;}
+.cb-goal-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e8f4ef;}
+.cb-goal-item:last-child{border-bottom:none;}
+.cb-check{width:18px;height:18px;border-radius:50%;border:2px solid #d4e8df;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.cb-check.done-c{background:#10b981;border-color:#10b981;color:#fff;font-size:10px;}
+.cb-check.ip-c{background:#fef3c7;border-color:#f59e0b;}
+.cb-goal-name{font-size:13px;font-weight:500;flex:1;}
+.cb-goal-pct{font-size:12px;font-weight:700;color:#4a9e7f;}
+.cb-due-item{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.12);}
+.cb-due-item:last-child{border-bottom:none;}
+.cb-due-name{font-size:12px;font-weight:500;}
+.cb-due-tag{font-size:11px;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:99px;}
+.cb-upd{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #e8f4ef;}
+.cb-upd:last-child{border-bottom:none;}
+.cb-av{width:28px;height:28px;border-radius:50%;background:#4a9e7f;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cb-upd-text strong{font-size:12px;font-weight:600;display:block;}
+.cb-upd-text span{font-size:11px;color:#5a7a6e;}
+
+/* ─── CONCEPT C: Editorial ─── */
+.cc-wrap{background:#fff;padding:0;}
+.cc-header{padding:28px 32px 24px;border-bottom:2px solid #1a3d30;}
+.cc-header-top{display:flex;align-items:flex-end;justify-content:space-between;}
+.cc-greeting{font-size:28px;font-weight:800;letter-spacing:-.5px;}
+.cc-greeting span{color:#4a9e7f;}
+.cc-date{font-size:12px;color:#5a7a6e;text-transform:uppercase;letter-spacing:.8px;}
+.cc-nums{display:flex;gap:32px;margin-top:20px;}
+.cc-num{border-left:3px solid #4a9e7f;padding-left:12px;}
+.cc-num .v{font-size:32px;font-weight:800;line-height:1;}
+.cc-num .l{font-size:11px;color:#5a7a6e;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;}
+.cc-body{display:grid;grid-template-columns:1fr 340px;}
+.cc-main{padding:28px 32px;border-right:1px solid #e8f4ef;}
+.cc-section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#4a9e7f;margin-bottom:16px;}
+.cc-goal{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1px solid #f0f7f4;}
+.cc-goal:last-child{border-bottom:none;}
+.cc-goal-num{font-size:11px;font-weight:800;color:#d4e8df;min-width:24px;margin-top:2px;}
+.cc-goal-body{flex:1;}
+.cc-goal-body h4{font-size:14px;font-weight:600;margin-bottom:4px;}
+.cc-goal-body p{font-size:12px;color:#5a7a6e;}
+.cc-goal-right{text-align:right;flex-shrink:0;}
+.cc-goal-pct{font-size:20px;font-weight:800;color:#1a2e26;}
+.cc-goal-due{font-size:11px;color:#5a7a6e;margin-top:2px;}
+.cc-goal-due.urg{color:#ef4444;font-weight:600;}
+.cc-bar-bg{height:3px;background:#e8f4ef;border-radius:99px;margin-top:8px;overflow:hidden;}
+.cc-bar{height:100%;background:#4a9e7f;border-radius:99px;}
+.cc-side{padding:24px;}
+.cc-side-section{margin-bottom:24px;}
+.cc-upd-item{padding:12px 0;border-bottom:1px solid #f0f7f4;}
+.cc-upd-item:last-child{border-bottom:none;}
+.cc-upd-title{font-size:13px;font-weight:600;}
+.cc-upd-meta{font-size:11px;color:#8fafa5;margin-top:3px;}
+.cc-deadline{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f0f7f4;}
+.cc-deadline:last-child{border-bottom:none;}
+.cc-dl-name{font-size:13px;font-weight:500;}
+.cc-dl-days{font-size:12px;font-weight:700;}
+.cc-dl-days.urgent{color:#ef4444;}
+.cc-dl-days.soon{color:#f59e0b;}
+.cc-dl-days.ok{color:#4a9e7f;}
+</style>
+</head>
+<body>
+
+<h1>Dashboard Concepts — Pick One</h1>
+<p class="subtitle">Three completely different layouts. All show the same data differently.</p>
+
+<!-- CONCEPT A -->
+<div class="concept">
+  <div class="concept-meta">
+    <div class="concept-label">CONCEPT A</div>
+    <div class="concept-title">Command Center</div>
+    <div class="concept-desc">Dark hero banner with inline stats, goals as gradient progress bars, deadline timeline on the right.</div>
+  </div>
+  <div class="ca-hero">
+    <div class="ca-greeting">Good morning, Vanshika 👋</div>
+    <div class="ca-date">Thursday, April 24, 2026</div>
+    <div class="ca-pills">
+      <div class="ca-pill"><div class="pv">6</div><div class="pl">My Goals</div></div>
+      <div class="ca-pill"><div class="pv">0%</div><div class="pl">Avg Progress</div></div>
+      <div class="ca-pill"><div class="pv">0</div><div class="pl">Completed</div></div>
+      <div class="ca-pill"><div class="pv">Sep 1</div><div class="pl">Next Due</div></div>
+    </div>
+  </div>
+  <div class="ca-body">
+    <div class="ca-left">
+      <h3>My Goals</h3>
+      <div class="ca-goal">
+        <div class="ca-goal-top"><span class="ca-goal-name">Advanced Secondary Research</span><span class="ca-goal-pct">0%</span></div>
+        <div class="ca-bar-bg"><div class="ca-bar" style="width:0%"></div></div>
+        <div class="ca-goal-meta"><span class="badge-sm ns">Not Started</span><span style="font-size:11px;color:#8fafa5">Due Sep 1, 2026</span></div>
+      </div>
+      <div class="ca-goal">
+        <div class="ca-goal-top"><span class="ca-goal-name">Excel & Data Analysis</span><span class="ca-goal-pct">35%</span></div>
+        <div class="ca-bar-bg"><div class="ca-bar" style="width:35%"></div></div>
+        <div class="ca-goal-meta"><span class="badge-sm ip">In Progress</span><span style="font-size:11px;color:#8fafa5">Due Sep 1, 2026</span></div>
+      </div>
+      <div class="ca-goal">
+        <div class="ca-goal-top"><span class="ca-goal-name">Financial Literacy</span><span class="ca-goal-pct">20%</span></div>
+        <div class="ca-bar-bg"><div class="ca-bar" style="width:20%"></div></div>
+        <div class="ca-goal-meta"><span class="badge-sm ip">In Progress</span><span style="font-size:11px;color:#8fafa5">Due Sep 1, 2026</span></div>
+      </div>
+      <div class="ca-goal">
+        <div class="ca-goal-top"><span class="ca-goal-name">AI Tools & Platforms</span><span class="ca-goal-pct">100%</span></div>
+        <div class="ca-bar-bg"><div class="ca-bar done" style="width:100%"></div></div>
+        <div class="ca-goal-meta"><span class="badge-sm done-b">Completed</span></div>
+      </div>
+    </div>
+    <div class="ca-right">
+      <h3>Upcoming Deadlines</h3>
+      <div class="ca-timeline">
+        <div class="ca-titem"><div class="ca-tdot yellow"></div><div class="ca-ttext"><strong>Excel & Data Analysis</strong><span>130 days left · Sep 1</span></div></div>
+        <div class="ca-titem"><div class="ca-tdot yellow"></div><div class="ca-ttext"><strong>Financial Literacy</strong><span>130 days left · Sep 1</span></div></div>
+        <div class="ca-titem"><div class="ca-tdot yellow"></div><div class="ca-ttext"><strong>AI Tools & Platforms</strong><span>130 days left · Sep 1</span></div></div>
+      </div>
+      <h3 style="margin-top:20px">Latest Updates</h3>
+      <div class="ca-timeline">
+        <div class="ca-titem"><div class="ca-tdot green"></div><div class="ca-ttext"><strong>Q2 Planning Wrap-up</strong><span>2 days ago</span></div></div>
+        <div class="ca-titem"><div class="ca-tdot green"></div><div class="ca-ttext"><strong>Welcome to Dashboard!</strong><span>3 days ago</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONCEPT B -->
+<div class="concept">
+  <div class="concept-meta">
+    <div class="concept-label">CONCEPT B</div>
+    <div class="concept-title">Bento Grid</div>
+    <div class="concept-desc">Asymmetric tiles of different sizes. Progress ring, goal checklist, deadline strip, and updates feed as distinct blocks.</div>
+  </div>
+  <div class="cb-wrap">
+    <!-- Greeting tile -->
+    <div class="cb-tile accent">
+      <h4>Welcome</h4>
+      <div style="font-size:20px;font-weight:800;margin-bottom:2px">Vanshika 👋</div>
+      <div style="font-size:12px;opacity:.6">Thursday, Apr 24</div>
+    </div>
+    <!-- Progress ring tile -->
+    <div class="cb-tile">
+      <h4>Overall Progress</h4>
+      <div class="cb-ring-wrap">
+        <div class="cb-ring">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="#e8f4ef" stroke-width="8"/>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="#4a9e7f" stroke-width="8" stroke-dasharray="201" stroke-dashoffset="161" stroke-linecap="round"/>
+          </svg>
+          <div class="cb-ring-pct">20%</div>
+        </div>
+        <div class="cb-ring-info">
+          <h3>2 / 6 active</h3>
+          <p>0 completed</p>
+          <p style="margin-top:4px;color:#ef4444;font-size:12px">0 overdue</p>
+        </div>
+      </div>
+    </div>
+    <!-- Stats tile -->
+    <div class="cb-tile blue">
+      <h4>Next Deadline</h4>
+      <div class="cb-big-num">130</div>
+      <div class="cb-big-sub">days until Sep 1, 2026</div>
+    </div>
+    <!-- Goals checklist (wide) -->
+    <div class="cb-tile wide">
+      <h4>My Goals</h4>
+      <div class="cb-goal-item"><div class="cb-check ip-c"></div><span class="cb-goal-name">Advanced Secondary Research</span><span class="cb-goal-pct">0%</span></div>
+      <div class="cb-goal-item"><div class="cb-check ip-c"></div><span class="cb-goal-name">Excel & Data Analysis</span><span class="cb-goal-pct">35%</span></div>
+      <div class="cb-goal-item"><div class="cb-check ip-c"></div><span class="cb-goal-name">Financial Literacy</span><span class="cb-goal-pct">20%</span></div>
+      <div class="cb-goal-item"><div class="cb-check done-c">✓</div><span class="cb-goal-name" style="text-decoration:line-through;color:#8fafa5">AI Tools & Platforms</span><span class="cb-goal-pct" style="color:#10b981">Done</span></div>
+    </div>
+    <!-- Deadlines tile -->
+    <div class="cb-tile accent">
+      <h4>Due Soon</h4>
+      <div class="cb-due-item"><span class="cb-due-name">All goals</span><span class="cb-due-tag">Sep 1</span></div>
+      <div class="cb-due-item"><span class="cb-due-name">Business Frameworks</span><span class="cb-due-tag">Sep 1</span></div>
+      <div class="cb-due-item"><span class="cb-due-name">Presentation Writing</span><span class="cb-due-tag">Sep 1</span></div>
+    </div>
+    <!-- Updates feed (wide) -->
+    <div class="cb-tile wide">
+      <h4>Latest Updates</h4>
+      <div class="cb-upd"><div class="cb-av">AM</div><div class="cb-upd-text"><strong>Q2 Planning Wrap-up</strong><span>Goals assigned — check your Goals tab · 2d ago</span></div></div>
+      <div class="cb-upd"><div class="cb-av">AM</div><div class="cb-upd-text"><strong>Welcome to Team Dashboard!</strong><span>Central hub for goals, updates & highlights · 3d ago</span></div></div>
+    </div>
+    <!-- Recognitions tile -->
+    <div class="cb-tile">
+      <h4>My Recognitions</h4>
+      <div style="font-size:32px;text-align:center;margin:8px 0">🏆</div>
+      <div style="font-size:13px;font-weight:600;text-align:center">Employee of the Month</div>
+      <div style="font-size:11px;color:#5a7a6e;text-align:center;margin-top:3px">April 2026</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONCEPT C -->
+<div class="concept">
+  <div class="concept-meta">
+    <div class="concept-label">CONCEPT C</div>
+    <div class="concept-title">Minimal Editorial</div>
+    <div class="concept-desc">No cards or shadows. Clean white layout with bold typography, thin dividers, and big numbers. Feels like a modern doc or report.</div>
+  </div>
+  <div class="cc-wrap">
+    <div class="cc-header">
+      <div class="cc-header-top">
+        <div>
+          <div class="cc-greeting">Good morning, <span>Vanshika</span> 👋</div>
+        </div>
+        <div class="cc-date">Thursday · April 24, 2026</div>
+      </div>
+      <div class="cc-nums">
+        <div class="cc-num"><div class="v">6</div><div class="l">Goals</div></div>
+        <div class="cc-num"><div class="v">20%</div><div class="l">Progress</div></div>
+        <div class="cc-num"><div class="v">0</div><div class="l">Done</div></div>
+        <div class="cc-num"><div class="v">130d</div><div class="l">To Next Due</div></div>
+      </div>
+    </div>
+    <div class="cc-body">
+      <div class="cc-main">
+        <div class="cc-section-title">My Goals</div>
+        <div class="cc-goal">
+          <div class="cc-goal-num">01</div>
+          <div class="cc-goal-body">
+            <h4>Advanced Secondary Research</h4>
+            <p>Structured, insight-led briefs rather than raw data dumps</p>
+            <div class="cc-bar-bg"><div class="cc-bar" style="width:0%"></div></div>
+          </div>
+          <div class="cc-goal-right"><div class="cc-goal-pct">0%</div><div class="cc-goal-due">Sep 1, 2026</div></div>
+        </div>
+        <div class="cc-goal">
+          <div class="cc-goal-num">02</div>
+          <div class="cc-goal-body">
+            <h4>Excel & Data Analysis</h4>
+            <p>Pivot tables, XLOOKUP, Tableau and Power BI</p>
+            <div class="cc-bar-bg"><div class="cc-bar" style="width:35%"></div></div>
+          </div>
+          <div class="cc-goal-right"><div class="cc-goal-pct">35%</div><div class="cc-goal-due">Sep 1, 2026</div></div>
+        </div>
+        <div class="cc-goal">
+          <div class="cc-goal-num">03</div>
+          <div class="cc-goal-body">
+            <h4>Financial Literacy</h4>
+            <p>P&L statements, EBITDA, revenue, margins, CAGR</p>
+            <div class="cc-bar-bg"><div class="cc-bar" style="width:20%"></div></div>
+          </div>
+          <div class="cc-goal-right"><div class="cc-goal-pct">20%</div><div class="cc-goal-due">Sep 1, 2026</div></div>
+        </div>
+        <div class="cc-goal">
+          <div class="cc-goal-num">04</div>
+          <div class="cc-goal-body">
+            <h4>AI Tools & Platforms</h4>
+            <p>AI tools for research workflows and specialized training</p>
+            <div class="cc-bar-bg"><div class="cc-bar" style="width:100%;background:#10b981"></div></div>
+          </div>
+          <div class="cc-goal-right"><div class="cc-goal-pct" style="color:#10b981">Done ✓</div></div>
+        </div>
+      </div>
+      <div class="cc-side">
+        <div class="cc-side-section">
+          <div class="cc-section-title">Deadlines</div>
+          <div class="cc-deadline"><span class="cc-dl-name">Excel & Data Analysis</span><span class="cc-dl-days ok">130d</span></div>
+          <div class="cc-deadline"><span class="cc-dl-name">Financial Literacy</span><span class="cc-dl-days ok">130d</span></div>
+          <div class="cc-deadline"><span class="cc-dl-name">Business Frameworks</span><span class="cc-dl-days ok">130d</span></div>
+          <div class="cc-deadline"><span class="cc-dl-name">Presentation Writing</span><span class="cc-dl-days ok">130d</span></div>
+        </div>
+        <div class="cc-side-section">
+          <div class="cc-section-title">Updates</div>
+          <div class="cc-upd-item"><div class="cc-upd-title">Q2 Planning Wrap-up</div><div class="cc-upd-meta">Alice Manager · 2 days ago</div></div>
+          <div class="cc-upd-item"><div class="cc-upd-title">Welcome to Team Dashboard!</div><div class="cc-upd-meta">Alice Manager · 3 days ago</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

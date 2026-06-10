@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Login / Register -->
+  <div id="login-page" class="page">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-icon">TD</div>
+        <h1>Team Dashboard</h1>
+        <p>Track goals, share updates, celebrate wins</p>
+      </div>
+
+      <!-- Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin" onclick="switchAuthTab('signin')">Sign In</button>
+        <button class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">Create Account</button>
+      </div>
+
+      <!-- Sign In -->
+      <form id="login-form">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="you@company.com" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required />
+        </div>
+        <div id="login-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+      </form>
+
+      <!-- Sign Up -->
+      <form id="signup-form" class="hidden">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" id="signup-name" placeholder="Jane Smith" required />
+          </div>
+          <div class="form-group">
+            <label>Role *</label>
+            <select id="signup-role">
+              <option value="employee">Employee</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="signup-email" placeholder="you@company.com" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Job Title</label>
+            <input type="text" id="signup-title" placeholder="e.g. Software Engineer" />
+          </div>
+          <div class="form-group">
+            <label>Department</label>
+            <input type="text" id="signup-dept" placeholder="e.g. Engineering" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password *</label>
+          <input type="password" id="signup-password" placeholder="Min 6 characters" required />
+        </div>
+        <div class="form-group">
+          <label>Confirm Password *</label>
+          <input type="password" id="signup-confirm" placeholder="Re-enter password" required />
+        </div>
+        <div id="signup-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Create Account</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- App Shell -->
+  <div id="app-page" class="page hidden">
+    <nav class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-icon sm">TD</div>
+        <span>Team Dashboard</span>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" data-page="dashboard" class="nav-link active">
+          <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          Dashboard
+        </a></li>
+        <li><a href="#" data-page="goals" class="nav-link">
+          <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+          Goals
+        </a></li>
+        <li><a href="#" data-page="highlights" class="nav-link">
+          <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+          Highlights
+        </a></li>
+        <li><a href="#" data-page="mygoals" class="nav-link" id="nav-mygoals">
+          <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+          My Goals
+        </a></li>
+        <li class="manager-only hidden"><a href="#" data-page="teamrating" class="nav-link">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+          Team Rating
+        </a></li>
+        <li><a href="#" data-page="team" class="nav-link" id="nav-team">
+          <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          Team
+        </a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="avatar" id="nav-avatar"></div>
+          <div class="user-details">
+            <span id="nav-name"></span>
+            <span id="nav-role" class="role-badge"></span>
+          </div>
+        </div>
+        <button id="logout-btn" class="btn-icon" title="Logout">
+          <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        </button>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <!-- Dashboard -->
+      <section id="dashboard-section" class="section">
+        <div id="dashboard-root"></div>
+      </section>
+
+      <!-- Goals -->
+      <section id="goals-section" class="section hidden">
+        <div class="section-header">
+          <h2>Goals</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="export-goals-btn" class="btn btn-secondary">↓ Export CSV</button>
+            <button id="upload-goals-btn" class="btn btn-secondary manager-only hidden">↑ Upload Goals</button>
+            <button id="new-goal-btn" class="btn btn-primary manager-only hidden">+ New Goal</button>
+          </div>
+        </div>
+        <div class="goals-toolbar">
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="goals-search" placeholder="Search by person name or goal title…" />
+          </div>
+          <div class="filter-bar" style="margin-bottom:0">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="team">Team</button>
+            <button class="filter-btn" data-filter="individual">Individual</button>
+            <button class="filter-btn" data-filter="in_progress">In Progress</button>
+            <button class="filter-btn" data-filter="completed">Completed</button>
+          </div>
+        </div>
+        <div id="goals-list" class="goals-list"></div>
+      </section>
+
+      <!-- My Goals -->
+      <section id="mygoals-section" class="section hidden">
+        <div class="section-header">
+          <h2>My Goals</h2>
+          <div style="display:flex;gap:8px">
+            <button id="export-my-goals-btn" class="btn btn-secondary">↓ Export CSV</button>
+            <button id="new-my-goal-btn" class="btn btn-primary">+ Add My Goal</button>
+          </div>
+        </div>
+        <div id="mygoals-summary" class="mg-summary"></div>
+        <div id="mygoals-list" class="goals-list"></div>
+      </section>
+
+      <!-- Team Rating -->
+      <section id="teamrating-section" class="section section-wide hidden">
+        <div class="section-header">
+          <h2>Team Rating</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="tr-year-filter" class="tr-year-select">
+              <option value="">All Years</option>
+            </select>
+            <button id="tr-export-btn" class="btn btn-secondary">↓ Export CSV</button>
+          </div>
+        </div>
+        <div id="tr-tabs-bar" class="tr-subtabs"></div>
+        <div id="teamrating-root"></div>
+      </section>
+
+      <!-- Team -->
+      <section id="team-section" class="section hidden">
+        <div class="section-header">
+          <h2>Team Members</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="team-count" class="text-muted"></span>
+            <button id="export-skills-btn" class="btn btn-secondary manager-only hidden">↓ Export Skills</button>
+            <button id="upload-ratings-btn" class="btn btn-secondary manager-only hidden">↑ Upload Ratings</button>
+          </div>
+        </div>
+        <div style="margin-bottom:20px;max-width:360px">
+          <div class="search-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            <input type="text" id="team-search" placeholder="Search by name…" />
+          </div>
+        </div>
+        <div id="team-grid" class="team-grid"></div>
+        <div id="team-empty" class="empty-state hidden" style="padding:60px">No members match your search.</div>
+      </section>
+
+      <!-- Member Profile Panel -->
+      <div id="profile-panel" class="profile-panel hidden">
+        <div class="profile-panel-inner">
+          <div id="profile-content"></div>
+        </div>
+      </div>
+      <div id="profile-backdrop" class="profile-backdrop hidden"></div>
+
+      <!-- Highlights -->
+      <section id="highlights-section" class="section hidden">
+        <div class="section-header">
+          <h2>Highlights</h2>
+          <button id="new-highlight-btn" class="btn btn-primary manager-only hidden">+ Add Highlight</button>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn active" data-hfilter="all">All Time</button>
+          <button class="filter-btn" data-hfilter="current">This Month</button>
+        </div>
+        <div id="highlights-list" class="highlights-grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button id="modal-close" class="btn-icon">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
