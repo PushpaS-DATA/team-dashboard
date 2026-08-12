@@ -1218,11 +1218,13 @@ app.post('/api/migrate', (req, res) => {
     db.transaction(() => {
       // Delete in reverse dependency order (children before parents)
       db.prepare('DELETE FROM poll_responses').run();
+      db.prepare('DELETE FROM goal_comments').run();
       db.prepare('DELETE FROM polls').run();
       db.prepare('DELETE FROM awards').run();
       db.prepare('DELETE FROM user_skills').run();
       db.prepare('DELETE FROM evaluations').run();
       db.prepare('DELETE FROM highlights').run();
+      db.prepare('DELETE FROM updates').run();
       db.prepare('DELETE FROM goals').run();
       db.prepare('DELETE FROM announcements').run();
       db.prepare('DELETE FROM users').run();
