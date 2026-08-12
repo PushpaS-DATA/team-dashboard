@@ -1243,16 +1243,16 @@ app.post('/api/migrate', (req, res) => {
         highlights.forEach((h: any) => ins.run(h.id,h.type,h.title,h.description,h.employee_id,h.month,h.created_by,h.created_at));
       }
       if (awards?.length) {
-        const ins = db.prepare('INSERT INTO awards (id,title,description,awarded_to,awarded_at,created_by) VALUES (?,?,?,?,?,?)');
-        awards.forEach((a: any) => ins.run(a.id,a.title,a.description,a.awarded_to,a.awarded_at,a.created_by));
+        const ins = db.prepare('INSERT INTO awards (id,user_id,title,description,awarded_at,created_by,created_at) VALUES (?,?,?,?,?,?,?)');
+        awards.forEach((a: any) => ins.run(a.id,a.user_id,a.title,a.description,a.awarded_at,a.created_by,a.created_at));
       }
       if (user_skills?.length) {
         const ins = db.prepare('INSERT INTO user_skills (id,user_id,skill,level,created_at) VALUES (?,?,?,?,?)');
         user_skills.forEach((s: any) => ins.run(s.id,s.user_id,s.skill,s.level,s.created_at));
       }
       if (evaluations?.length) {
-        const ins = db.prepare('INSERT INTO evaluations (id,evaluatee_id,evaluator_id,eval_type,year,period,params,net_rating,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
-        evaluations.forEach((e: any) => ins.run(e.id,e.evaluatee_id,e.evaluator_id,e.eval_type,e.year,e.period,e.params,e.net_rating,e.notes,e.created_at));
+        const ins = db.prepare('INSERT INTO evaluations (id,user_id,year,period,eval_type,tl_name,type_of_work,x_factor,problem_solving,project_scoping,communication,attention_to_detail,attitude_towards_work,compliance,client_management,feedback_360,piex_internal,engagement,complexity_of_work,avg_feedback_rating,learning_curve,area_of_improvement,net_rating,comments,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        evaluations.forEach((e: any) => ins.run(e.id,e.user_id,e.year,e.period,e.eval_type,e.tl_name,e.type_of_work,e.x_factor,e.problem_solving,e.project_scoping,e.communication,e.attention_to_detail,e.attitude_towards_work,e.compliance,e.client_management,e.feedback_360,e.piex_internal,e.engagement,e.complexity_of_work,e.avg_feedback_rating,e.learning_curve,e.area_of_improvement,e.net_rating,e.comments,e.created_by,e.created_at));
       }
       if (announcements?.length) {
         const ins = db.prepare('INSERT INTO announcements (id,title,message,created_by,created_at) VALUES (?,?,?,?,?)');
