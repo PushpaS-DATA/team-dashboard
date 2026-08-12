@@ -1215,46 +1215,54 @@ app.post('/api/migrate', (req, res) => {
   if (req.headers['x-migrate-key'] !== process.env.MIGRATE_KEY) return res.status(403).json({ error: 'Forbidden' });
   const { users, goals, highlights, awards, user_skills, evaluations, announcements, polls } = req.body;
   try {
-    db.pragma('foreign_keys = OFF');
     db.transaction(() => {
+      // Delete in reverse dependency order (children before parents)
+      db.prepare('DELETE FROM poll_responses').run();
+      db.prepare('DELETE FROM polls').run();
+      db.prepare('DELETE FROM awards').run();
+      db.prepare('DELETE FROM user_skills').run();
+      db.prepare('DELETE FROM evaluations').run();
+      db.prepare('DELETE FROM highlights').run();
+      db.prepare('DELETE FROM goals').run();
+      db.prepare('DELETE FROM announcements').run();
+      db.prepare('DELETE FROM users').run();
+
+      // Insert in dependency order (parents before children)
       if (users?.length) {
-        db.prepare('DELETE FROM users').run();
-        const ins = db.prepare('INSERT OR IGNORE INTO users (id,name,email,password_hash,role,avatar_initials,created_at,job_title,department,joined_at,last_promotion_date,promotion_title,bio,is_admin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO users (id,name,email,password_hash,role,avatar_initials,created_at,job_title,department,joined_at,last_promotion_date,promotion_title,bio,is_admin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         users.forEach((u: any) => ins.run(u.id,u.name,u.email,u.password_hash,u.role,u.avatar_initials,u.created_at,u.job_title,u.department,u.joined_at,u.last_promotion_date,u.promotion_title,u.bio,u.is_admin));
       }
       if (goals?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO goals (id,title,description,type,assigned_to,progress,status,due_date,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO goals (id,title,description,type,assigned_to,progress,status,due_date,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
         goals.forEach((g: any) => ins.run(g.id,g.title,g.description,g.type,g.assigned_to,g.progress,g.status,g.due_date,g.created_by,g.created_at));
       }
       if (highlights?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO highlights (id,type,title,description,employee_id,month,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO highlights (id,type,title,description,employee_id,month,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)');
         highlights.forEach((h: any) => ins.run(h.id,h.type,h.title,h.description,h.employee_id,h.month,h.created_by,h.created_at));
       }
       if (awards?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO awards (id,title,description,awarded_to,awarded_at,created_by) VALUES (?,?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO awards (id,title,description,awarded_to,awarded_at,created_by) VALUES (?,?,?,?,?,?)');
         awards.forEach((a: any) => ins.run(a.id,a.title,a.description,a.awarded_to,a.awarded_at,a.created_by));
       }
       if (user_skills?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO user_skills (id,user_id,skill,level,created_at) VALUES (?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO user_skills (id,user_id,skill,level,created_at) VALUES (?,?,?,?,?)');
         user_skills.forEach((s: any) => ins.run(s.id,s.user_id,s.skill,s.level,s.created_at));
       }
       if (evaluations?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO evaluations (id,evaluatee_id,evaluator_id,eval_type,year,period,params,net_rating,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO evaluations (id,evaluatee_id,evaluator_id,eval_type,year,period,params,net_rating,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
         evaluations.forEach((e: any) => ins.run(e.id,e.evaluatee_id,e.evaluator_id,e.eval_type,e.year,e.period,e.params,e.net_rating,e.notes,e.created_at));
       }
       if (announcements?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO announcements (id,title,message,created_by,created_at) VALUES (?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO announcements (id,title,message,created_by,created_at) VALUES (?,?,?,?,?)');
         announcements.forEach((a: any) => ins.run(a.id,a.title,a.message,a.created_by,a.created_at));
       }
       if (polls?.length) {
-        const ins = db.prepare('INSERT OR IGNORE INTO polls (id,question,created_by,is_active,created_at) VALUES (?,?,?,?,?)');
+        const ins = db.prepare('INSERT INTO polls (id,question,created_by,is_active,created_at) VALUES (?,?,?,?,?)');
         polls.forEach((p: any) => ins.run(p.id,p.question,p.created_by,p.is_active,p.created_at));
       }
     })();
-    db.pragma('foreign_keys = ON');
     res.json({ ok: true });
   } catch(e: any) {
-    db.pragma('foreign_keys = ON');
     res.status(500).json({ error: e.message });
   }
 });
