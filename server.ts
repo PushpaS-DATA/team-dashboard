@@ -1235,8 +1235,8 @@ app.post('/api/migrate', (req, res) => {
         users.forEach((u: any) => ins.run(u.id,u.name,u.email,u.password_hash,u.role,u.avatar_initials,u.created_at,u.job_title,u.department,u.joined_at,u.last_promotion_date,u.promotion_title,u.bio,u.is_admin));
       }
       if (goals?.length) {
-        const ins = db.prepare('INSERT INTO goals (id,title,description,type,assigned_to,progress,status,due_date,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
-        goals.forEach((g: any) => ins.run(g.id,g.title,g.description,g.type,g.assigned_to,g.progress,g.status,g.due_date,g.created_by,g.created_at));
+        const ins = db.prepare('INSERT INTO goals (id,title,description,type,assigned_to,progress,status,due_date,created_by,created_at,updated_at,reminder_sent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+        goals.forEach((g: any) => ins.run(g.id,g.title,g.description,g.type,g.assigned_to,g.progress,g.status,g.due_date,g.created_by,g.created_at,g.updated_at,g.reminder_sent));
       }
       if (highlights?.length) {
         const ins = db.prepare('INSERT INTO highlights (id,type,title,description,employee_id,month,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)');
@@ -1247,16 +1247,16 @@ app.post('/api/migrate', (req, res) => {
         awards.forEach((a: any) => ins.run(a.id,a.user_id,a.title,a.description,a.awarded_at,a.created_by,a.created_at));
       }
       if (user_skills?.length) {
-        const ins = db.prepare('INSERT INTO user_skills (id,user_id,skill,level,created_at) VALUES (?,?,?,?,?)');
-        user_skills.forEach((s: any) => ins.run(s.id,s.user_id,s.skill,s.level,s.created_at));
+        const ins = db.prepare('INSERT INTO user_skills (id,user_id,skill,created_at) VALUES (?,?,?,?)');
+        user_skills.forEach((s: any) => ins.run(s.id,s.user_id,s.skill,s.created_at));
       }
       if (evaluations?.length) {
         const ins = db.prepare('INSERT INTO evaluations (id,user_id,year,period,eval_type,tl_name,type_of_work,x_factor,problem_solving,project_scoping,communication,attention_to_detail,attitude_towards_work,compliance,client_management,feedback_360,piex_internal,engagement,complexity_of_work,avg_feedback_rating,learning_curve,area_of_improvement,net_rating,comments,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         evaluations.forEach((e: any) => ins.run(e.id,e.user_id,e.year,e.period,e.eval_type,e.tl_name,e.type_of_work,e.x_factor,e.problem_solving,e.project_scoping,e.communication,e.attention_to_detail,e.attitude_towards_work,e.compliance,e.client_management,e.feedback_360,e.piex_internal,e.engagement,e.complexity_of_work,e.avg_feedback_rating,e.learning_curve,e.area_of_improvement,e.net_rating,e.comments,e.created_by,e.created_at));
       }
       if (announcements?.length) {
-        const ins = db.prepare('INSERT INTO announcements (id,title,message,created_by,created_at) VALUES (?,?,?,?,?)');
-        announcements.forEach((a: any) => ins.run(a.id,a.title,a.message,a.created_by,a.created_at));
+        const ins = db.prepare('INSERT INTO announcements (id,title,message,created_by,is_active,created_at) VALUES (?,?,?,?,?,?)');
+        announcements.forEach((a: any) => ins.run(a.id,a.title,a.message,a.created_by,a.is_active,a.created_at));
       }
       if (polls?.length) {
         const ins = db.prepare('INSERT INTO polls (id,question,created_by,is_active,created_at) VALUES (?,?,?,?,?)');
