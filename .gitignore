@@ -1,3 +1,6 @@
 node_modules/
 team.db
+team.db-shm
+team.db-wal
+team-dashboard.db
 *.log
