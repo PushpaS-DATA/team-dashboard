@@ -1215,6 +1215,7 @@ app.post('/api/migrate', (req, res) => {
   if (req.headers['x-migrate-key'] !== process.env.MIGRATE_KEY) return res.status(403).json({ error: 'Forbidden' });
   const { users, goals, highlights, awards, user_skills, evaluations, announcements, polls } = req.body;
   try {
+    db.pragma('foreign_keys = OFF');
     db.transaction(() => {
       if (users?.length) {
         db.prepare('DELETE FROM users').run();
@@ -1250,8 +1251,12 @@ app.post('/api/migrate', (req, res) => {
         polls.forEach((p: any) => ins.run(p.id,p.question,p.created_by,p.is_active,p.created_at));
       }
     })();
+    db.pragma('foreign_keys = ON');
     res.json({ ok: true });
-  } catch(e: any) { res.status(500).json({ error: e.message }); }
+  } catch(e: any) {
+    db.pragma('foreign_keys = ON');
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
