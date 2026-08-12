@@ -107,10 +107,38 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     UNIQUE(user_id, skill)
   );
+  CREATE TABLE IF NOT EXISTS announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS polls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id),
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS poll_responses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id INTEGER NOT NULL REFERENCES polls(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    response TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(poll_id, user_id)
+  );
 `);
 
 // Migrate existing DB: add profile columns to users if not present
 const existingCols = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
+if (!existingCols.includes('is_admin')) {
+  db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+  // Make alice admin by default
+  db.prepare(`UPDATE users SET is_admin=1 WHERE email='alice@company.com'`).run();
+}
 const profileCols: [string, string][] = [
   ['job_title',            'TEXT'],
   ['department',           'TEXT'],
@@ -142,6 +170,40 @@ const evalNewCols: [string, string][] = [
 ];
 for (const [col, type] of evalNewCols) {
   if (!evalCols.includes(col)) db.exec(`ALTER TABLE evaluations ADD COLUMN ${col} ${type}`);
+}
+
+// Migrate evaluations: add period column + change UNIQUE to (user_id, year, period)
+if (!evalCols.includes('period')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    ALTER TABLE evaluations RENAME TO _evaluations_old;
+    CREATE TABLE evaluations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      year INTEGER NOT NULL,
+      period TEXT NOT NULL DEFAULT 'Annual',
+      eval_type TEXT,
+      tl_name TEXT, type_of_work TEXT, x_factor TEXT,
+      problem_solving REAL, project_scoping REAL, communication REAL,
+      attention_to_detail REAL, attitude_towards_work REAL, compliance REAL,
+      client_management REAL, feedback_360 REAL, piex_internal REAL, engagement REAL,
+      complexity_of_work REAL, avg_feedback_rating REAL, learning_curve REAL,
+      area_of_improvement TEXT, net_rating REAL, comments TEXT,
+      created_by INTEGER REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, year, period)
+    );
+    INSERT INTO evaluations
+      SELECT id, user_id, year, 'Annual', eval_type, tl_name, type_of_work, x_factor,
+        problem_solving, project_scoping, communication, attention_to_detail,
+        attitude_towards_work, compliance, client_management, feedback_360,
+        piex_internal, engagement, complexity_of_work, avg_feedback_rating,
+        learning_curve, area_of_improvement, net_rating, comments,
+        created_by, created_at
+      FROM _evaluations_old;
+    DROP TABLE _evaluations_old;
+  `);
+  db.pragma('foreign_keys = ON');
 }
 
 // ── Seed ─────────────────────────────────────────────────────────────────────
@@ -269,7 +331,7 @@ app.use(session({
 }));
 
 declare module 'express-session' {
-  interface SessionData { userId: number; role: string; }
+  interface SessionData { userId: number; role: string; isAdmin: boolean; }
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -278,7 +340,12 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 function requireManager(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
-  if (req.session.role !== 'manager') return res.status(403).json({ error: 'Managers only' });
+  if (req.session.role !== 'manager' && !req.session.isAdmin) return res.status(403).json({ error: 'Managers only' });
+  next();
+}
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!req.session.isAdmin) return res.status(403).json({ error: 'Admins only' });
   next();
 }
 
@@ -291,7 +358,8 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   req.session.userId = user.id;
   req.session.role = user.role;
-  res.json({ id: user.id, name: user.name, email: user.email, role: user.role, avatar_initials: user.avatar_initials });
+  req.session.isAdmin = !!user.is_admin;
+  res.json({ id: user.id, name: user.name, email: user.email, role: user.role, is_admin: !!user.is_admin, avatar_initials: user.avatar_initials });
 });
 app.post('/api/auth/register', (req, res) => {
   const { name, email, password, role, job_title, department } = req.body;
@@ -312,7 +380,8 @@ app.post('/api/auth/register', (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => { req.session.destroy(() => res.json({ ok: true })); });
 app.get('/api/auth/me', requireAuth, (req, res) => {
-  res.json(db.prepare('SELECT id,name,email,role,avatar_initials FROM users WHERE id=?').get(req.session.userId));
+  const u = db.prepare('SELECT id,name,email,role,is_admin,avatar_initials FROM users WHERE id=?').get(req.session.userId) as any;
+  res.json({ ...u, is_admin: !!u.is_admin });
 });
 
 // ── Users (simple list for dropdowns) ────────────────────────────────────────
@@ -393,6 +462,31 @@ app.post('/api/members/:id/awards', requireManager, (req, res) => {
   const result = db.prepare(`INSERT INTO awards (user_id,title,description,awarded_at,created_by) VALUES (?,?,?,?,?)`)
     .run(req.params.id, title, description || null, awarded_at, req.session.userId);
   res.status(201).json(db.prepare('SELECT * FROM awards WHERE id=?').get(result.lastInsertRowid));
+});
+
+// Admin: delete a team member and all their data
+app.delete('/api/members/:id', requireAdmin, (req, res) => {
+  const targetId = parseInt(req.params.id);
+  if (targetId === req.session.userId) return res.status(400).json({ error: 'Cannot delete yourself' });
+  const user = db.prepare('SELECT id, name FROM users WHERE id=?').get(targetId) as any;
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  db.transaction(() => {
+    db.prepare('DELETE FROM user_skills WHERE user_id=?').run(targetId);
+    db.prepare('DELETE FROM evaluations WHERE user_id=? OR created_by=?').run(targetId, targetId);
+    db.prepare('DELETE FROM awards WHERE user_id=? OR created_by=?').run(targetId, targetId);
+    db.prepare('DELETE FROM goal_comments WHERE user_id=?').run(targetId);
+    // goals created_by is NOT NULL — delete them (cascades their comments)
+    db.prepare('DELETE FROM goals WHERE created_by=?').run(targetId);
+    // goals merely assigned_to this user — nullify
+    db.prepare('UPDATE goals SET assigned_to=NULL WHERE assigned_to=?').run(targetId);
+    db.prepare('DELETE FROM updates WHERE created_by=?').run(targetId);
+    // highlights created_by is NOT NULL — delete them
+    db.prepare('DELETE FROM highlights WHERE created_by=?').run(targetId);
+    // highlights where this user was the featured employee — nullify
+    db.prepare('UPDATE highlights SET employee_id=NULL WHERE employee_id=?').run(targetId);
+    db.prepare('DELETE FROM users WHERE id=?').run(targetId);
+  })();
+  res.json({ ok: true, deleted: user.name });
 });
 
 app.delete('/api/awards/:id', requireManager, (req, res) => {
@@ -684,19 +778,20 @@ app.delete('/api/highlights/:id', requireManager, (req, res) => {
 
 // All evaluations (manager only) — for Team Rating page
 app.get('/api/evaluations', requireManager, (req, res) => {
-  const { year, type } = req.query as { year?: string; type?: string };
+  const { year, type, period } = req.query as { year?: string; type?: string; period?: string };
   const conditions: string[] = [];
   const params: any[] = [];
   if (year) { conditions.push('e.year = ?'); params.push(year); }
+  if (period) { conditions.push('e.period = ?'); params.push(period); }
   if (type === 'pm') {
-    conditions.push("(e.eval_type = 'pm' OR e.eval_type IS NULL)");
+    conditions.push("(e.eval_type = 'pm' OR (e.eval_type IS NULL AND u.role = 'manager'))");
   } else if (type === 'member') {
-    conditions.push("e.eval_type = 'member'");
+    conditions.push("(e.eval_type = 'member' OR (e.eval_type IS NULL AND u.role = 'employee'))");
   }
   let query = `SELECT e.*, u.name as member_name, u.avatar_initials, u.job_title, u.department
     FROM evaluations e JOIN users u ON e.user_id = u.id`;
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  query += year ? ` ORDER BY e.net_rating DESC` : ` ORDER BY e.year DESC, e.net_rating DESC`;
+  query += ` ORDER BY e.year DESC, e.net_rating DESC`;
   res.json(db.prepare(query).all(...params));
 });
 
@@ -704,6 +799,16 @@ app.get('/api/evaluations', requireManager, (req, res) => {
 app.get('/api/evaluations/years', requireManager, (req, res) => {
   const years = db.prepare(`SELECT DISTINCT year FROM evaluations ORDER BY year DESC`).all();
   res.json(years.map((r: any) => r.year));
+});
+
+// Available periods for a given year
+app.get('/api/evaluations/periods', requireManager, (req, res) => {
+  const { year } = req.query as { year?: string };
+  let q = `SELECT DISTINCT period FROM evaluations`;
+  if (year) q += ` WHERE year = ?`;
+  q += ` ORDER BY period`;
+  const rows: any[] = year ? (db.prepare(q).all(year) as any[]) : (db.prepare(q).all() as any[]);
+  res.json(rows.map((r: any) => r.period));
 });
 
 app.get('/api/evaluations/export', requireManager, (req, res) => {
@@ -743,26 +848,27 @@ app.get('/api/evaluations/:userId', requireAuth, (req, res) => {
   }
   const evals = db.prepare(`SELECT e.*, u.name as created_by_name
     FROM evaluations e LEFT JOIN users u ON e.created_by = u.id
-    WHERE e.user_id = ? ORDER BY e.year DESC`).all(targetId);
+    WHERE e.user_id = ? ORDER BY e.year DESC, e.period`).all(targetId);
   res.json(evals);
 });
 
 app.post('/api/evaluations/bulk', requireManager, (req, res) => {
-  const { rows, eval_type } = req.body;
+  const { rows, eval_type, period } = req.body;
   if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'rows array required' });
   const evalType: string = eval_type === 'member' ? 'member' : 'pm';
+  const evalPeriod: string = ['H1','H2','Q1','Q2','Q3','Q4','Annual'].includes(period) ? period : 'Annual';
 
   const results: any[] = [];
   const errors: string[] = [];
 
   const upsert = db.prepare(`INSERT INTO evaluations
-    (user_id,year,eval_type,tl_name,type_of_work,x_factor,
+    (user_id,year,period,eval_type,tl_name,type_of_work,x_factor,
      problem_solving,project_scoping,communication,attention_to_detail,
      attitude_towards_work,compliance,client_management,feedback_360,piex_internal,engagement,
      complexity_of_work,avg_feedback_rating,learning_curve,area_of_improvement,
      net_rating,comments,created_by)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(user_id,year) DO UPDATE SET
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(user_id,year,period) DO UPDATE SET
       eval_type=excluded.eval_type,
       tl_name=excluded.tl_name, type_of_work=excluded.type_of_work, x_factor=excluded.x_factor,
       problem_solving=excluded.problem_solving, project_scoping=excluded.project_scoping,
@@ -787,7 +893,7 @@ app.post('/api/evaluations/bulk', requireManager, (req, res) => {
 
       const n = (v: any) => (v !== undefined && v !== '' && v !== null) ? parseFloat(v) : null;
       upsert.run(
-        user.id, parseInt(r.year), evalType,
+        user.id, parseInt(r.year), evalPeriod, evalType,
         r.tl_name||null, r.type_of_work||null, r.x_factor||null,
         n(r.problem_solving), n(r.project_scoping), n(r.communication),
         n(r.attention_to_detail), n(r.attitude_towards_work), n(r.compliance),
@@ -796,7 +902,7 @@ app.post('/api/evaluations/bulk', requireManager, (req, res) => {
         r.area_of_improvement||null,
         n(r.net_rating), r.comments||null, req.session.userId
       );
-      results.push({ name: r.name, year: r.year });
+      results.push({ name: r.name, year: r.year, period: evalPeriod });
     }
   });
   txn();
@@ -991,6 +1097,117 @@ cron.schedule('0 8 * * *', () => {
     );
     db.prepare('UPDATE goals SET reminder_sent=1 WHERE id=?').run(g.id);
   }
+});
+
+// ── Announcements ─────────────────────────────────────────────────────────────
+
+app.get('/api/announcements', requireAuth, (req, res) => {
+  const rows = db.prepare(`SELECT a.*, u.name as author_name
+    FROM announcements a LEFT JOIN users u ON a.created_by = u.id
+    WHERE a.is_active = 1 ORDER BY a.created_at DESC`).all();
+  res.json(rows);
+});
+
+app.get('/api/announcements/all', requireManager, (req, res) => {
+  const rows = db.prepare(`SELECT a.*, u.name as author_name
+    FROM announcements a LEFT JOIN users u ON a.created_by = u.id
+    ORDER BY a.created_at DESC`).all();
+  res.json(rows);
+});
+
+app.post('/api/announcements', requireManager, (req, res) => {
+  const { title, message } = req.body;
+  if (!title || !message) return res.status(400).json({ error: 'title and message required' });
+  const result = db.prepare(`INSERT INTO announcements (title, message, created_by) VALUES (?,?,?)`)
+    .run(title.trim(), message.trim(), req.session.userId);
+  res.status(201).json({ id: result.lastInsertRowid });
+});
+
+app.patch('/api/announcements/:id/toggle', requireManager, (req, res) => {
+  const row = db.prepare('SELECT id, is_active FROM announcements WHERE id=?').get(req.params.id) as any;
+  if (!row) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE announcements SET is_active=? WHERE id=?').run(row.is_active ? 0 : 1, row.id);
+  res.json({ ok: true, is_active: !row.is_active });
+});
+
+app.delete('/api/announcements/:id', requireManager, (req, res) => {
+  const result = db.prepare('DELETE FROM announcements WHERE id=?').run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true });
+});
+
+// ── Recent Activity ───────────────────────────────────────────────────────────
+
+app.get('/api/activity', requireManager, (req, res) => {
+  const limit = Number(req.query.limit) || 30;
+  const rows = db.prepare(`
+    SELECT * FROM (
+      SELECT 'goal_completed' as type, u.name as actor, u.id as actor_id, g.title as subject, g.updated_at as ts
+      FROM goals g JOIN users u ON g.assigned_to = u.id WHERE g.status = 'completed' AND g.assigned_to IS NOT NULL
+      UNION ALL
+      SELECT 'goal_updated' as type, u.name as actor, u.id as actor_id, g.title as subject, g.updated_at as ts
+      FROM goals g JOIN users u ON g.assigned_to = u.id WHERE g.status != 'completed' AND g.updated_at != g.created_at AND g.assigned_to IS NOT NULL
+      UNION ALL
+      SELECT 'goal_created' as type, u.name as actor, u.id as actor_id, g.title as subject, g.created_at as ts
+      FROM goals g JOIN users u ON g.created_by = u.id
+      UNION ALL
+      SELECT 'rating_added' as type, u.name as actor, u.id as actor_id, ('Rating added for ' || u.name) as subject, e.created_at as ts
+      FROM evaluations e JOIN users u ON e.user_id = u.id
+    )
+    ORDER BY ts DESC LIMIT ?
+  `).all(limit);
+  res.json(rows);
+});
+
+// ── Polls ─────────────────────────────────────────────────────────────────────
+
+app.get('/api/polls', requireAuth, (req, res) => {
+  const userId = req.session.userId!;
+  const sessionUser = db.prepare('SELECT role, is_admin FROM users WHERE id=?').get(userId) as any;
+  const isManager = sessionUser?.role === 'manager' || sessionUser?.is_admin;
+  const polls = db.prepare(`
+    SELECT p.*, u.name as author_name,
+      (SELECT COUNT(*) FROM poll_responses WHERE poll_id = p.id) as response_count,
+      (SELECT response FROM poll_responses WHERE poll_id = p.id AND user_id = ?) as my_response
+    FROM polls p JOIN users u ON p.created_by = u.id
+    ORDER BY p.created_at DESC
+  `).all(userId) as any[];
+
+  const result = polls.map(p => ({
+    ...p,
+    results: isManager ? db.prepare('SELECT response, COUNT(*) as n FROM poll_responses WHERE poll_id = ? GROUP BY response').all(p.id) : null,
+    respondents: isManager ? db.prepare(`SELECT u.name, pr.response, pr.created_at FROM poll_responses pr JOIN users u ON pr.user_id = u.id WHERE pr.poll_id = ? ORDER BY pr.created_at DESC`).all(p.id) : null
+  }));
+  res.json(result);
+});
+
+app.post('/api/polls', requireManager, (req, res) => {
+  const { question } = req.body;
+  if (!question?.trim()) return res.status(400).json({ error: 'Question required' });
+  const r = db.prepare('INSERT INTO polls (question, created_by) VALUES (?,?)').run(question.trim(), req.session.userId);
+  res.json({ id: r.lastInsertRowid });
+});
+
+app.patch('/api/polls/:id/toggle', requireManager, (req, res) => {
+  const poll = db.prepare('SELECT * FROM polls WHERE id=?').get(req.params.id) as any;
+  if (!poll) return res.status(404).json({ error: 'Not found' });
+  db.prepare('UPDATE polls SET is_active=? WHERE id=?').run(poll.is_active ? 0 : 1, req.params.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/polls/:id', requireManager, (req, res) => {
+  db.prepare('DELETE FROM polls WHERE id=?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/polls/:id/respond', requireAuth, (req, res) => {
+  const { response } = req.body;
+  const VALID = ['😊','😐','😟'];
+  if (!VALID.includes(response)) return res.status(400).json({ error: 'Invalid response' });
+  const user = (req as any).user;
+  db.prepare('INSERT INTO poll_responses (poll_id, user_id, response) VALUES (?,?,?) ON CONFLICT(poll_id, user_id) DO UPDATE SET response=excluded.response, created_at=datetime("now")')
+    .run(req.params.id, user.id, response);
+  res.json({ ok: true });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

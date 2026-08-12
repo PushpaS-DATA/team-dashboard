@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: team-dashboard
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/team.db
+      - key: SESSION_SECRET
+        generateValue: true
+    disk:
+      name: team-db
+      mountPath: /data
+      sizeGB: 1
