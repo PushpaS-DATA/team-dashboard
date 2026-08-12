@@ -328,7 +328,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 8 * 60 * 60 * 1000 }
-}));
+}) as any);
 
 declare module 'express-session' {
   interface SessionData { userId: number; role: string; isAdmin: boolean; }
