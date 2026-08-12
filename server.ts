@@ -1210,65 +1210,6 @@ app.post('/api/polls/:id/respond', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Temporary migration endpoint (remove after use) ───────────────────────────
-app.post('/api/migrate', (req, res) => {
-  if (req.headers['x-migrate-key'] !== process.env.MIGRATE_KEY) return res.status(403).json({ error: 'Forbidden' });
-  const { users, goals, highlights, awards, user_skills, evaluations, announcements, polls } = req.body;
-  try {
-    db.transaction(() => {
-      // Delete in reverse dependency order (children before parents)
-      db.prepare('DELETE FROM poll_responses').run();
-      db.prepare('DELETE FROM goal_comments').run();
-      db.prepare('DELETE FROM polls').run();
-      db.prepare('DELETE FROM awards').run();
-      db.prepare('DELETE FROM user_skills').run();
-      db.prepare('DELETE FROM evaluations').run();
-      db.prepare('DELETE FROM highlights').run();
-      db.prepare('DELETE FROM updates').run();
-      db.prepare('DELETE FROM goals').run();
-      db.prepare('DELETE FROM announcements').run();
-      db.prepare('DELETE FROM users').run();
-
-      // Insert in dependency order (parents before children)
-      if (users?.length) {
-        const ins = db.prepare('INSERT INTO users (id,name,email,password_hash,role,avatar_initials,created_at,job_title,department,joined_at,last_promotion_date,promotion_title,bio,is_admin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        users.forEach((u: any) => ins.run(u.id,u.name,u.email,u.password_hash,u.role,u.avatar_initials,u.created_at,u.job_title,u.department,u.joined_at,u.last_promotion_date,u.promotion_title,u.bio,u.is_admin));
-      }
-      if (goals?.length) {
-        const ins = db.prepare('INSERT INTO goals (id,title,description,type,assigned_to,progress,status,due_date,created_by,created_at,updated_at,reminder_sent) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
-        goals.forEach((g: any) => ins.run(g.id,g.title,g.description,g.type,g.assigned_to,g.progress,g.status,g.due_date,g.created_by,g.created_at,g.updated_at,g.reminder_sent));
-      }
-      if (highlights?.length) {
-        const ins = db.prepare('INSERT INTO highlights (id,type,title,description,employee_id,month,created_by,created_at) VALUES (?,?,?,?,?,?,?,?)');
-        highlights.forEach((h: any) => ins.run(h.id,h.type,h.title,h.description,h.employee_id,h.month,h.created_by,h.created_at));
-      }
-      if (awards?.length) {
-        const ins = db.prepare('INSERT INTO awards (id,user_id,title,description,awarded_at,created_by,created_at) VALUES (?,?,?,?,?,?,?)');
-        awards.forEach((a: any) => ins.run(a.id,a.user_id,a.title,a.description,a.awarded_at,a.created_by,a.created_at));
-      }
-      if (user_skills?.length) {
-        const ins = db.prepare('INSERT INTO user_skills (id,user_id,skill,created_at) VALUES (?,?,?,?)');
-        user_skills.forEach((s: any) => ins.run(s.id,s.user_id,s.skill,s.created_at));
-      }
-      if (evaluations?.length) {
-        const ins = db.prepare('INSERT INTO evaluations (id,user_id,year,period,eval_type,tl_name,type_of_work,x_factor,problem_solving,project_scoping,communication,attention_to_detail,attitude_towards_work,compliance,client_management,feedback_360,piex_internal,engagement,complexity_of_work,avg_feedback_rating,learning_curve,area_of_improvement,net_rating,comments,created_by,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        evaluations.forEach((e: any) => ins.run(e.id,e.user_id,e.year,e.period,e.eval_type,e.tl_name,e.type_of_work,e.x_factor,e.problem_solving,e.project_scoping,e.communication,e.attention_to_detail,e.attitude_towards_work,e.compliance,e.client_management,e.feedback_360,e.piex_internal,e.engagement,e.complexity_of_work,e.avg_feedback_rating,e.learning_curve,e.area_of_improvement,e.net_rating,e.comments,e.created_by,e.created_at));
-      }
-      if (announcements?.length) {
-        const ins = db.prepare('INSERT INTO announcements (id,title,message,created_by,is_active,created_at) VALUES (?,?,?,?,?,?)');
-        announcements.forEach((a: any) => ins.run(a.id,a.title,a.message,a.created_by,a.is_active,a.created_at));
-      }
-      if (polls?.length) {
-        const ins = db.prepare('INSERT INTO polls (id,question,created_by,is_active,created_at) VALUES (?,?,?,?,?)');
-        polls.forEach((p: any) => ins.run(p.id,p.question,p.created_by,p.is_active,p.created_at));
-      }
-    })();
-    res.json({ ok: true });
-  } catch(e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
