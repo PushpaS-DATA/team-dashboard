@@ -99,6 +99,12 @@ $('signup-form').addEventListener('submit', async e => {
   err.classList.add('hidden');
   const password = $('signup-password').value;
   const confirm = $('signup-confirm').value;
+  const email = $('signup-email').value.trim().toLowerCase();
+  if (!email.endsWith('@penguin-international.com')) {
+    err.textContent = 'Only @penguin-international.com email addresses are allowed';
+    err.classList.remove('hidden');
+    return;
+  }
   if (password !== confirm) {
     err.textContent = 'Passwords do not match';
     err.classList.remove('hidden');
@@ -107,11 +113,9 @@ $('signup-form').addEventListener('submit', async e => {
   try {
     const user = await api('POST', '/api/auth/register', {
       name: $('signup-name').value,
-      email: $('signup-email').value,
+      email,
       password,
-      role: $('signup-role').value,
-      job_title: $('signup-title').value || null,
-      department: $('signup-dept').value || null,
+      role: 'employee',
     });
     await onLogin(user);
   } catch (ex) {

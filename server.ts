@@ -363,15 +363,15 @@ app.post('/api/auth/login', (req, res) => {
 });
 app.post('/api/auth/register', (req, res) => {
   const { name, email, password, role, job_title, department } = req.body;
-  if (!name || !email || !password || !role) return res.status(400).json({ error: 'name, email, password and role are required' });
-  if (!['manager', 'employee'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
+  if (!email.toLowerCase().endsWith('@penguin-international.com')) return res.status(400).json({ error: 'Only @penguin-international.com email addresses are allowed' });
   if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
   const existing = db.prepare('SELECT id FROM users WHERE email=?').get(email);
   if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
   const initials = name.trim().split(/\s+/).map((w: string) => w[0].toUpperCase()).slice(0, 2).join('');
   const result = db.prepare(`INSERT INTO users (name,email,password_hash,role,avatar_initials,job_title,department,joined_at)
     VALUES (?,?,?,?,?,?,?,date('now'))`
-  ).run(name.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), role, initials, job_title || null, department || null);
+  ).run(name.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), 'employee', initials, job_title || null, department || null);
   const user = db.prepare('SELECT id,name,email,role,avatar_initials FROM users WHERE id=?').get(result.lastInsertRowid) as any;
   req.session.userId = user.id;
   req.session.role = user.role;
