@@ -438,8 +438,8 @@ app.get('/api/members', requireAuth, async (req, res) => {
     const members = (await query(`
       SELECT id, name, email, role, avatar_initials, job_title, department,
              joined_at, last_promotion_date, promotion_title, bio
-      FROM users ORDER BY name
-    `)).rows as any[];
+      FROM users WHERE id != $1 ORDER BY name
+    `, [req.session.userId])).rows as any[];
 
     for (const m of members) {
       const gc = (await query(`SELECT COUNT(*) as total,
