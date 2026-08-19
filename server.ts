@@ -38,6 +38,7 @@ async function initSchema() {
       role TEXT NOT NULL CHECK(role IN ('manager','employee')),
       avatar_initials TEXT,
       is_admin INTEGER NOT NULL DEFAULT 0,
+      manager_id INTEGER REFERENCES users(id),
       job_title TEXT,
       department TEXT,
       joined_at TEXT,
@@ -166,6 +167,7 @@ async function initSchema() {
 
   // Migrations: add columns if not present (for existing PostgreSQL databases)
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin INTEGER NOT NULL DEFAULT 0`);
+  await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id)`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT`);
   await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS joined_at TEXT`);
@@ -394,7 +396,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password, role, job_title, department } = req.body;
+    const { name, email, password, manager_id } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password are required' });
     if (!email.toLowerCase().endsWith('@penguin-international.com')) return res.status(400).json({ error: 'Only @penguin-international.com email addresses are allowed' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -402,9 +404,9 @@ app.post('/api/auth/register', async (req, res) => {
     if (existing) return res.status(409).json({ error: 'An account with this email already exists' });
     const initials = name.trim().split(/\s+/).map((w: string) => w[0].toUpperCase()).slice(0, 2).join('');
     const insertResult = await query(
-      `INSERT INTO users (name,email,password_hash,role,avatar_initials,job_title,department,joined_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_DATE) RETURNING id`,
-      [name.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), 'employee', initials, job_title || null, department || null]
+      `INSERT INTO users (name,email,password_hash,role,avatar_initials,manager_id,joined_at)
+       VALUES ($1,$2,$3,$4,$5,$6,CURRENT_DATE) RETURNING id`,
+      [name.trim(), email.toLowerCase().trim(), bcrypt.hashSync(password, 10), 'employee', initials, manager_id || null]
     );
     const newId = insertResult.rows[0].id;
     const user = (await query('SELECT id,name,email,role,avatar_initials FROM users WHERE id=$1', [newId])).rows[0];
@@ -423,6 +425,15 @@ app.get('/api/auth/me', requireAuth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Server error' }); }
 });
 
+// ── Managers list (for registration dropdown) ────────────────────────────────
+
+app.get('/api/managers', async (req, res) => {
+  try {
+    const managers = (await query(`SELECT id, name FROM users WHERE role='manager' ORDER BY name`)).rows;
+    res.json(managers);
+  } catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
 // ── Users (simple list for dropdowns) ────────────────────────────────────────
 
 app.get('/api/users', requireAuth, async (req, res) => {
@@ -435,11 +446,13 @@ app.get('/api/users', requireAuth, async (req, res) => {
 
 app.get('/api/members', requireAuth, async (req, res) => {
   try {
-    const members = (await query(`
-      SELECT id, name, email, role, avatar_initials, job_title, department,
-             joined_at, last_promotion_date, promotion_title, bio
-      FROM users WHERE id != $1 ORDER BY name
-    `, [req.session.userId])).rows as any[];
+    const isAdmin = req.session.isAdmin;
+    const members = (await query(
+      isAdmin
+        ? `SELECT id, name, email, role, avatar_initials, job_title, department, joined_at, last_promotion_date, promotion_title, bio, manager_id FROM users WHERE id != $1 ORDER BY name`
+        : `SELECT id, name, email, role, avatar_initials, job_title, department, joined_at, last_promotion_date, promotion_title, bio, manager_id FROM users WHERE manager_id = $1 ORDER BY name`,
+      [req.session.userId]
+    )).rows as any[];
 
     for (const m of members) {
       const gc = (await query(`SELECT COUNT(*) as total,

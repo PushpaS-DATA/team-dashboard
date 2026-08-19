@@ -86,11 +86,19 @@ document.addEventListener('click', e => {
 });
 
 /* ── Auth ───────────────────────────────────────────────────────────────── */
-function switchAuthTab(tab) {
+async function switchAuthTab(tab) {
   $('login-form').classList.toggle('hidden', tab !== 'signin');
   $('signup-form').classList.toggle('hidden', tab !== 'signup');
   $('tab-signin').classList.toggle('active', tab === 'signin');
   $('tab-signup').classList.toggle('active', tab === 'signup');
+  if (tab === 'signup') {
+    try {
+      const managers = await api('GET', '/api/managers');
+      const sel = $('signup-manager');
+      sel.innerHTML = '<option value="">Select your manager *</option>' +
+        managers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    } catch(e) { /* ignore */ }
+  }
 }
 
 $('signup-form').addEventListener('submit', async e => {
@@ -110,12 +118,18 @@ $('signup-form').addEventListener('submit', async e => {
     err.classList.remove('hidden');
     return;
   }
+  const managerId = $('signup-manager').value;
+  if (!managerId) {
+    err.textContent = 'Please select your manager';
+    err.classList.remove('hidden');
+    return;
+  }
   try {
     const user = await api('POST', '/api/auth/register', {
       name: $('signup-name').value,
       email,
       password,
-      role: 'employee',
+      manager_id: parseInt(managerId),
     });
     await onLogin(user);
   } catch (ex) {
