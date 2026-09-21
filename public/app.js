@@ -1991,6 +1991,45 @@ async function openProfile(memberId) {
       </div>
 
       <div class="profile-tab-pane" id="ptab-ratings">
+        ${isManager ? `
+        <div style="margin-bottom:16px">
+          <button class="btn btn-primary" onclick="toggleRatingForm(${m.id},'${m.name}','${m.email}')">+ Add Rating</button>
+        </div>
+        <div id="rating-form-${m.id}" class="hidden" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+          <h4 style="margin:0 0 16px">New Evaluation for ${m.name}</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Year *</label>
+              <input type="number" id="rf-year-${m.id}" value="${new Date().getFullYear()}" min="2020" max="2030" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"/></div>
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Period *</label>
+              <select id="rf-period-${m.id}" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">
+                <option>H1</option><option>H2</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option><option selected>Annual</option>
+              </select></div>
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Type *</label>
+              <select id="rf-type-${m.id}" onchange="refreshRatingFields(${m.id})" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">
+                <option value="pm">Project Manager</option><option value="member">Team Member</option>
+              </select></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">TL Name</label>
+              <input type="text" id="rf-tl-${m.id}" placeholder="TL name" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"/></div>
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Type of Work</label>
+              <input type="text" id="rf-tow-${m.id}" placeholder="e.g. Development" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"/></div>
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">X-Factor</label>
+              <input type="text" id="rf-xf-${m.id}" placeholder="Notable quality" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"/></div>
+          </div>
+          <div id="rf-scores-${m.id}" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Comments / Strengths</label>
+              <textarea id="rf-comments-${m.id}" rows="3" placeholder="Overall comments..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical"></textarea></div>
+            <div><label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Areas of Improvement</label>
+              <textarea id="rf-aoi-${m.id}" rows="3" placeholder="Areas to improve..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical"></textarea></div>
+          </div>
+          <div id="rf-error-${m.id}" style="color:#ef4444;font-size:13px;margin-bottom:8px;display:none"></div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-primary" onclick="submitRatingForm(${m.id},'${m.email}')">Save Rating</button>
+            <button class="btn btn-secondary" onclick="toggleRatingForm(${m.id},'${m.name}','${m.email}')">Cancel</button>
+          </div>
+        </div>` : ''}
         ${evals.length ? evals.map(ev => `
           <div class="eval-card">
             <div class="eval-header">
@@ -2043,7 +2082,7 @@ async function openProfile(memberId) {
           <div class="empty-state" style="padding:48px;text-align:center">
             <div style="font-size:36px;margin-bottom:12px">⭐</div>
             <h3 style="margin-bottom:6px">No evaluations yet</h3>
-            <p style="color:var(--text-muted)">Use "Upload Ratings" on the Team page to add evaluation data.</p>
+            <p style="color:var(--text-muted)">${isManager ? 'Click "Add Rating" above to add one.' : 'Your performance ratings will appear here once added by your manager.'}</p>
           </div>`}
       </div>
 
@@ -3051,3 +3090,80 @@ function sortRatingTable(tableId, col, dir) {
     // not logged in — show login page
   }
 })();
+
+/* ── Inline Rating Form ─────────────────────────────────────────────────── */
+const PM_FIELDS = [
+  { key: 'problem_solving',      label: 'Problem Solving',            weight: 5  },
+  { key: 'project_scoping',      label: 'Project Scoping',            weight: 15 },
+  { key: 'communication',        label: 'Communication',              weight: 15 },
+  { key: 'attention_to_detail',  label: 'Attention to Detail',        weight: 10 },
+  { key: 'attitude_towards_work',label: 'Attitude Towards Work',      weight: 10 },
+  { key: 'compliance',           label: 'Compliance',                 weight: 10 },
+  { key: 'client_management',    label: 'Client Management',          weight: 10 },
+  { key: 'feedback_360',         label: '360° Feedback',              weight: 10 },
+  { key: 'piex_internal',        label: 'PIEX / Internal Initiative', weight: 5  },
+  { key: 'engagement',           label: 'Engagement',                 weight: 10 },
+];
+const TM_FIELDS = [
+  { key: 'complexity_of_work',   label: 'Complexity of Work',         weight: 20 },
+  { key: 'avg_feedback_rating',  label: 'Avg Feedback Rating',        weight: 35 },
+  { key: 'attitude_towards_work',label: 'Attitude Towards Work',      weight: 15 },
+  { key: 'communication',        label: 'Communication',              weight: 10 },
+  { key: 'learning_curve',       label: 'Learning Curve',             weight: 10 },
+  { key: 'engagement',           label: 'Engagement',                 weight: 10 },
+];
+
+function toggleRatingForm(memberId, name, email) {
+  const form = document.getElementById('rating-form-' + memberId);
+  if (!form) return;
+  const hidden = form.classList.toggle('hidden');
+  if (!hidden) refreshRatingFields(memberId);
+}
+
+function refreshRatingFields(memberId) {
+  const type = document.getElementById('rf-type-' + memberId)?.value || 'pm';
+  const fields = type === 'member' ? TM_FIELDS : PM_FIELDS;
+  const container = document.getElementById('rf-scores-' + memberId);
+  if (!container) return;
+  container.innerHTML = fields.map(f => `
+    <div>
+      <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">
+        ${f.label} <span style="font-weight:400;color:var(--text-muted)">(${f.weight}%)</span>
+      </label>
+      <input type="number" id="rf-${f.key}-${memberId}" min="1" max="10" step="0.1" placeholder="1–10"
+        style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"/>
+    </div>`).join('');
+}
+
+async function submitRatingForm(memberId, email) {
+  const errEl = document.getElementById('rf-error-' + memberId);
+  errEl.style.display = 'none';
+  const type = document.getElementById('rf-type-' + memberId).value;
+  const year = document.getElementById('rf-year-' + memberId).value;
+  const period = document.getElementById('rf-period-' + memberId).value;
+  if (!year) { errEl.textContent = 'Year is required'; errEl.style.display = 'block'; return; }
+
+  const fields = type === 'member' ? TM_FIELDS : PM_FIELDS;
+  const row = {
+    email,
+    year,
+    tl_name:    document.getElementById('rf-tl-' + memberId)?.value || null,
+    type_of_work: document.getElementById('rf-tow-' + memberId)?.value || null,
+    x_factor:   document.getElementById('rf-xf-' + memberId)?.value || null,
+    comments:   document.getElementById('rf-comments-' + memberId)?.value || null,
+    area_of_improvement: document.getElementById('rf-aoi-' + memberId)?.value || null,
+  };
+  for (const f of fields) {
+    const val = document.getElementById('rf-' + f.key + '-' + memberId)?.value;
+    row[f.key] = val ? parseFloat(val) : null;
+  }
+
+  try {
+    await api('POST', '/api/evaluations/bulk', { rows: [row], eval_type: type, period });
+    document.getElementById('rating-form-' + memberId).classList.add('hidden');
+    openProfile(memberId);
+  } catch(e) {
+    errEl.textContent = e.message || 'Failed to save rating';
+    errEl.style.display = 'block';
+  }
+}
