@@ -3394,7 +3394,11 @@ function renderBillable(stats, options) {
 
   <!-- 3. PM Performance + Client Analysis -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    ${card('PM Performance — Revenue & Hours', barRows(stats.by_pm||[], 'pm_name', 'amount', 'hours'))}
+    ${(()=>{
+      const ALLOWED_PMS = ['Aditi Bhargava','Ali Azhar','Anchal Bhandari','Hema Sarkar','Jayant Raghuwani','Jisha John','Nidhi Agarwal','Parth Adlakha','Shweta Rawat','Soumya Srivastava'];
+      const filteredPMs = (stats.by_pm||[]).filter(r => ALLOWED_PMS.includes((r.pm_name||'').trim()));
+      return card('PM Performance — Revenue & Hours', barRows(filteredPMs, 'pm_name', 'amount', 'hours', 10));
+    })()}
     ${card('Client Analysis — Revenue Contribution', clientRows(stats.by_client||[]))}
   </div>
 
