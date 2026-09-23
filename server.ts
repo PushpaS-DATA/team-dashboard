@@ -229,6 +229,7 @@ async function initSchema() {
   await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS client_country TEXT`);
   await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS billable_notes TEXT`);
   await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS created_by TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS day_night TEXT`);
   // Ensure alice is admin
   await query(`UPDATE users SET is_admin=1 WHERE email='alice@company.com' AND is_admin=0`);
 }
@@ -1605,6 +1606,11 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
               CASE WHEN SUM(billable_hours)>0 THEN ROUND((SUM(total_amount)/SUM(billable_hours))::numeric,2) ELSE 0 END as avg_rate
        FROM billable_records ${where} GROUP BY company_name ORDER BY amount DESC`, args)).rows;
 
+    const byDayNight = (await query(
+      `SELECT COALESCE(NULLIF(TRIM(day_night),''),'Unknown') as shift,
+              COUNT(*) as count, COALESCE(SUM(billable_hours),0) as hours, COALESCE(SUM(total_amount),0) as amount
+       FROM billable_records ${where} GROUP BY TRIM(day_night) ORDER BY hours DESC`, args)).rows;
+
     res.json({
       total_amount: totals.total_amount,
       total_hours: totals.total_hours,
@@ -1617,6 +1623,7 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
       by_member: byMember,
       by_status: byStatus,
       by_client: byClient,
+      by_daynight: byDayNight,
     });
   } catch (e: any) { console.error(e); res.status(500).json({ error: e.message || 'Server error' }); }
 });

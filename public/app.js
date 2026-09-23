@@ -3383,6 +3383,37 @@ function renderBillable(stats, options) {
     }).join('');
   }
 
+  function dayNightChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data — re-import Excel to load Day/Night values</p>';
+    const totalHrs = data.reduce((s,r)=>s+(+(r.hours)||0),0)||1;
+    const colors = {'Day':'#f59e0b','Night':'#6366f1','Unknown':'#9ca3af'};
+    const rows = data.map(r=>{
+      const hrs = +(r.hours)||0;
+      const amt = +(r.amount)||0;
+      const pct = Math.round(hrs/totalHrs*100);
+      const col = colors[r.shift] || C1;
+      return `<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:600;color:#1f2937;display:flex;align-items:center;gap:6px">
+            <span style="width:10px;height:10px;border-radius:50%;background:${col};display:inline-block"></span>${r.shift}
+          </span>
+          <div style="display:flex;gap:12px;align-items:center">
+            <span style="font-size:11px;color:#6b7280">${fmtNum(hrs)} hrs</span>
+            <span style="font-size:12px;font-weight:700;color:${col}">${shorten(amt)}</span>
+          </div>
+        </div>
+        <div style="height:10px;background:#f3f4f6;border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:5px"></div>
+        </div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:2px">${pct}% of hours</div>
+      </div>`;
+    }).join('');
+    const totalAmt = data.reduce((s,r)=>s+(+(r.amount)||0),0);
+    return rows + `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280">
+      Total: ${fmtNum(totalHrs)} hrs · ${shorten(totalAmt)}
+    </div>`;
+  }
+
   const kpis = [
     ['Total Revenue', fmt$(stats.total_amount), C1],
     ['Total Hours', fmtNum(stats.total_hours)+' hrs', C1],
@@ -3421,7 +3452,7 @@ function renderBillable(stats, options) {
       const filteredPMs = (stats.by_pm||[]).filter(r => ALLOWED_PMS.some(n => (r.pm_name||'').trim().startsWith(n)));
       return card('PM Performance — Revenue & Hours', barRows(filteredPMs, 'pm_name', 'amount', 'hours', 10));
     })()}
-    ${card('Client Analysis', clientRows(stats.by_client||[]))}
+    ${card('Client Analysis — by Name', barRows(stats.by_member||[], 'member', 'amount', 'hours'))}
   </div>
 
   <!-- 4. Company Analysis + Project Status -->
@@ -3430,10 +3461,11 @@ function renderBillable(stats, options) {
     ${card('Project Status / Pipeline', statusChart(stats.by_status||[]))}
   </div>
 
-  <!-- 5. Work Type + Industry -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    ${card('Work Type Analysis — Service Categories', barRows(stats.by_category||[], 'category', 'amount', null))}
+  <!-- 5. Work Type + Industry + Day/Night -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+    ${card('Work Type Analysis', barRows(stats.by_category||[], 'category', 'amount', null))}
     ${card('Industry Analysis', barRows(stats.by_industry||[], 'industry', 'amount', null))}
+    ${card('Day / Night Shift', dayNightChart(stats.by_daynight||[]))}
   </div>
   `;
 }
