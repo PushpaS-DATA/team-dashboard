@@ -3172,6 +3172,7 @@ async function submitRatingForm(memberId, email) {
 /* ── Billable Dashboard ─────────────────────────────────────────────────── */
 
 let billableFilters = { pm: '', month: '', category: '', industry: '', status: '' };
+let _billableOptions = null;
 
 function fmt$(n) {
   if (!n && n !== 0) return '—';
@@ -3182,35 +3183,50 @@ function fmtNum(n) {
   return new Intl.NumberFormat('en-IN').format(Math.round(n));
 }
 
+function _buildBillableOptions(records) {
+  return {
+    pms: [...new Set(records.map(r => r.pm_name).filter(Boolean))].sort(),
+    cats: [...new Set(records.map(r => r.primary_category).filter(Boolean))].sort(),
+    inds: [...new Set(records.map(r => r.industry).filter(Boolean))].sort(),
+    statuses: [...new Set(records.map(r => r.project_status).filter(Boolean))].sort(),
+    months: [...new Set(records.map(r => r.date ? r.date.slice(0,7) : '').filter(Boolean))].sort().reverse(),
+  };
+}
+
 async function loadBillable() {
   const root = $('billable-root');
   root.innerHTML = '<div class="empty-state">Loading…</div>';
   try {
-    const qs = new URLSearchParams(billableFilters).toString();
-    const [stats, records] = await Promise.all([
-      api('GET', `/api/billable/stats?${qs}`),
-      api('GET', `/api/billable/records?${qs}`)
-    ]);
-    renderBillable(stats, records);
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(billableFilters).filter(([,v]) => v))
+    ).toString();
+    if (!_billableOptions) {
+      const [stats, allRecords] = await Promise.all([
+        api('GET', `/api/billable/stats?${qs}`),
+        api('GET', '/api/billable/records')
+      ]);
+      _billableOptions = _buildBillableOptions(allRecords);
+      renderBillable(stats, _billableOptions);
+    } else {
+      const stats = await api('GET', `/api/billable/stats?${qs}`);
+      renderBillable(stats, _billableOptions);
+    }
   } catch (e) {
     root.innerHTML = `<div class="empty-state" style="color:var(--danger)">${e.message}</div>`;
   }
 }
 
-function renderBillable(stats, records) {
+function renderBillable(stats, options) {
   const root = $('billable-root');
   const isManager = currentUser && (currentUser.role === 'manager' || currentUser.is_admin);
-
-  const pms = [...new Set(records.map(r => r.pm_name).filter(Boolean))].sort();
-  const cats = [...new Set(records.map(r => r.primary_category).filter(Boolean))].sort();
-  const inds = [...new Set(records.map(r => r.industry).filter(Boolean))].sort();
-  const statuses = [...new Set(records.map(r => r.project_status).filter(Boolean))].sort();
-  const months = [...new Set(records.map(r => r.date ? r.date.slice(0,7) : '').filter(Boolean))].sort().reverse();
+  const { pms, cats, inds, statuses, months } = options;
 
   const verifiedAmt = +((stats.verified || []).find(v => v.verified_payment === 'Yes')?.amount || 0);
   const unverifiedAmt = +((stats.verified || []).find(v => v.verified_payment !== 'Yes')?.amount || 0);
   const totalVerif = verifiedAmt + unverifiedAmt;
   const verifiedPct = totalVerif > 0 ? Math.round(verifiedAmt / totalVerif * 100) : 0;
+
+  const C1 = '#1a7a6e', C2 = '#4caf8c', TRACK = '#e2ece9';
 
   function opt(list, val, label) {
     return `<option value="">All ${label}</option>` + list.map(x => `<option value="${x}" ${x===val?'selected':''}>${x}</option>`).join('');
@@ -3218,168 +3234,176 @@ function renderBillable(stats, records) {
   function monthOpt(list, val) {
     return `<option value="">All Months</option>` + list.map(m => `<option value="${m}" ${m===val?'selected':''}>${m}</option>`).join('');
   }
+  function shorten(n) {
+    n = +n || 0;
+    if (n >= 10000000) return `₹${(n/10000000).toFixed(1)}Cr`;
+    if (n >= 100000) return `₹${(n/100000).toFixed(1)}L`;
+    return fmt$(n);
+  }
 
-  const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#a855f7','#fb923c'];
-
-  function hBarChart(data, labelKey, valueKey, formatter) {
-    if (!data || !data.length) return '<p style="color:var(--text-muted);font-size:13px;padding:8px 0">No data</p>';
-    const maxVal = Math.max(...data.map(r => +(r[valueKey]) || 0), 1);
-    return data.slice(0, 12).map((r, i) => {
-      const pct = Math.round((+(r[valueKey]) || 0) / maxVal * 100);
-      return `<div style="margin-bottom:9px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-          <span style="font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58%">${r[labelKey] || '—'}</span>
-          <span style="color:var(--text-muted);white-space:nowrap;margin-left:6px">${formatter(r[valueKey])}</span>
+  // Dual horizontal bar: revenue (teal) + hours (green) per row
+  function dualBar(data, labelKey) {
+    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px 0">No data</p>';
+    const maxAmt = Math.max(...data.map(r => +(r.amount)||0), 1);
+    const maxHrs = Math.max(...data.map(r => +(r.hours)||0), 1);
+    return data.slice(0,12).map(r => {
+      const aPct = Math.round((+(r.amount)||0)/maxAmt*100);
+      const hPct = r.hours != null ? Math.round((+(r.hours)||0)/maxHrs*100) : -1;
+      return `<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;color:#222;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r[labelKey]||'—'}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+          <span style="font-size:10px;color:#888;width:52px;text-align:right;flex-shrink:0">Revenue</span>
+          <div style="flex:1;height:9px;background:${TRACK};border-radius:5px;overflow:hidden">
+            <div style="height:100%;width:${aPct}%;background:${C1};border-radius:5px"></div>
+          </div>
+          <span style="font-size:11px;color:#444;white-space:nowrap;min-width:64px">${shorten(r.amount)}</span>
         </div>
-        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${COLORS[i % COLORS.length]};border-radius:4px"></div>
+        ${hPct >= 0 ? `<div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:10px;color:#888;width:52px;text-align:right;flex-shrink:0">Hours</span>
+          <div style="flex:1;height:7px;background:${TRACK};border-radius:5px;overflow:hidden">
+            <div style="height:100%;width:${hPct}%;background:${C2};border-radius:5px"></div>
+          </div>
+          <span style="font-size:11px;color:#444;white-space:nowrap;min-width:64px">${fmtNum(r.hours)} hrs</span>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Single bar (for industry/category — no hours available)
+  function singleBar(data, labelKey, valKey, formatter, color) {
+    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px 0">No data</p>';
+    const maxVal = Math.max(...data.map(r => +(r[valKey])||0), 1);
+    return data.slice(0,12).map(r => {
+      const pct = Math.round((+(r[valKey])||0)/maxVal*100);
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+          <span style="font-weight:500;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%">${r[labelKey]||'—'}</span>
+          <span style="color:#666;white-space:nowrap;margin-left:6px">${formatter(r[valKey])}</span>
+        </div>
+        <div style="height:8px;background:${TRACK};border-radius:5px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:5px"></div>
         </div>
       </div>`;
     }).join('');
   }
 
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Vertical bar chart for monthly trend
+  const MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function vBarChart(data) {
-    if (!data || !data.length) return '<p style="color:var(--text-muted);font-size:13px;padding:8px">No monthly data</p>';
-    const display = data.slice(0, 12).reverse();
-    const maxAmt = Math.max(...display.map(r => +(r.amount) || 0), 1);
+    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px">No data</p>';
+    const display = data.slice(0,12).reverse();
+    const maxAmt = Math.max(...display.map(r => +(r.amount)||0), 1);
     const n = display.length;
-    const BAR_W = 52, GAP = 16, H = 160, LABEL_H = 30, VAL_H = 20;
-    const W = n * (BAR_W + GAP) + GAP;
-    const bars = display.map((r, i) => {
-      const amt = +(r.amount) || 0;
-      const barH = Math.round(amt / maxAmt * H);
-      const x = GAP + i * (BAR_W + GAP);
-      const y = H - barH;
-      // format month: "2026-07" → "Jul '26"
-      const parts = (r.month || '').split('-');
-      const mLabel = parts.length === 2 ? `${MONTH_NAMES[+parts[1]-1] || parts[1]} '${parts[0].slice(2)}` : r.month;
-      // value label: shorten large numbers
-      const valLabel = amt >= 10000000 ? `₹${(amt/10000000).toFixed(1)}Cr` : amt >= 100000 ? `₹${(amt/100000).toFixed(1)}L` : fmt$(amt);
+    const BW = 48, GAP = 14, H = 150;
+    const W = n*(BW+GAP)+GAP;
+    const bars = display.map((r,i) => {
+      const amt = +(r.amount)||0;
+      const bh = Math.round(amt/maxAmt*H);
+      const x = GAP + i*(BW+GAP);
+      const parts = (r.month||'').split('-');
+      const ml = parts.length===2 ? `${MNAMES[+parts[1]-1]||parts[1]} '${parts[0].slice(2)}` : r.month;
+      const vl = shorten(amt);
       return `<g>
-        <rect x="${x}" y="${y}" width="${BAR_W}" height="${barH}" fill="#4f6ef7" rx="4">
+        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="4" opacity="0.9">
           <title>${r.month}: ${fmt$(amt)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title>
         </rect>
-        <text x="${x + BAR_W/2}" y="${y - 5}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-weight="500">${valLabel}</text>
-        <text x="${x + BAR_W/2}" y="${H + 16}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${mLabel}</text>
+        <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="8" fill="#666">${vl}</text>
+        <text x="${x+BW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#888">${ml}</text>
       </g>`;
     }).join('');
-    return `<div style="overflow-x:auto">
-      <svg viewBox="0 0 ${W} ${H + LABEL_H + VAL_H}" style="width:100%;min-width:${Math.min(W,300)}px;height:${H + LABEL_H + VAL_H}px" xmlns="http://www.w3.org/2000/svg">
-        <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="var(--border)" stroke-width="1"/>
-        ${bars}
-      </svg>
-    </div>`;
+    return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+22}" style="width:100%;min-width:${Math.min(W,260)}px;height:${H+22}px" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#ddd" stroke-width="1"/>
+      ${bars}
+    </svg></div>`;
   }
 
+  // Donut for verification
   function donutChart() {
-    if (!totalVerif) return '<p style="color:var(--text-muted);font-size:13px">No data</p>';
-    const r = 38, cx = 50, cy = 50, sw = 16;
-    const circ = 2 * Math.PI * r;
-    const dash = circ * verifiedPct / 100;
-    const offset = circ * 0.25;
-    return `<div style="display:flex;align-items:center;gap:20px">
-      <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="${sw}"/>
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#22c55e" stroke-width="${sw}"
+    if (!totalVerif) return '<p style="color:#888;font-size:13px">No data</p>';
+    const R=44,cx=60,cy=60,sw=18, circ=2*Math.PI*R;
+    const dash=circ*verifiedPct/100, offset=circ*0.25;
+    return `<div style="display:flex;align-items:center;gap:24px">
+      <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${TRACK}" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${C2}" stroke-width="${sw}"
           stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
-        <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">${verifiedPct}%</text>
-        <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="9" fill="var(--text-muted)">verified</text>
+        <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a1a">${verifiedPct}%</text>
+        <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="10" fill="#888">Verified</text>
       </svg>
-      <div style="font-size:12px;line-height:1.8">
-        <div><span style="color:#22c55e;font-weight:600">✔ Verified</span><br/><strong>${fmt$(verifiedAmt)}</strong></div>
-        <div style="margin-top:6px"><span style="color:var(--text-muted)">○ Pending</span><br/><strong>${fmt$(unverifiedAmt)}</strong></div>
+      <div style="font-size:13px;line-height:2">
+        <div style="color:${C1};font-weight:600">✔ Verified</div>
+        <div style="font-weight:700;font-size:15px">${fmt$(verifiedAmt)}</div>
+        <div style="color:#999;margin-top:6px">○ Pending</div>
+        <div style="font-weight:700;font-size:15px">${fmt$(unverifiedAmt)}</div>
       </div>
     </div>`;
   }
 
-  const selStyle = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
+  const ss = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
+  const cardStyle = `background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px`;
+  const headStyle = `font-size:13px;font-weight:700;color:#1a1a1a;margin:0 0 14px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid ${C2};padding-bottom:8px`;
 
   root.innerHTML = `
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:20px;background:var(--surface);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)">
-    <select id="bf-pm" style="${selStyle}">${opt(pms,billableFilters.pm,'PMs')}</select>
-    <select id="bf-month" style="${selStyle}">${monthOpt(months,billableFilters.month)}</select>
-    <select id="bf-category" style="${selStyle}">${opt(cats,billableFilters.category,'Categories')}</select>
-    <select id="bf-industry" style="${selStyle}">${opt(inds,billableFilters.industry,'Industries')}</select>
-    <select id="bf-status" style="${selStyle}">${opt(statuses,billableFilters.status,'Statuses')}</select>
+    <select id="bf-pm" style="${ss}">${opt(pms,billableFilters.pm,'PMs')}</select>
+    <select id="bf-month" style="${ss}">${monthOpt(months,billableFilters.month)}</select>
+    <select id="bf-category" style="${ss}">${opt(cats,billableFilters.category,'Categories')}</select>
+    <select id="bf-industry" style="${ss}">${opt(inds,billableFilters.industry,'Industries')}</select>
+    <select id="bf-status" style="${ss}">${opt(statuses,billableFilters.status,'Statuses')}</select>
     <button class="btn btn-primary" onclick="applyBillableFilters()" style="padding:6px 16px">Apply</button>
     <button class="btn btn-secondary" onclick="clearBillableFilters()" style="padding:6px 16px">Clear</button>
     ${isManager ? `<button class="btn btn-secondary" onclick="importBillable()" style="padding:6px 16px;margin-left:auto">↑ Import Excel</button>` : ''}
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px">
-    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="font-size:20px">${fmt$(stats.total_amount)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Hours</div><div class="stat-value" style="font-size:20px">${fmtNum(stats.total_hours)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value" style="font-size:20px">${fmtNum(stats.total_projects)}</div></div>
-    <div class="stat-card"><div class="stat-label">Avg Rate / Hr</div><div class="stat-value" style="font-size:20px">${fmt$(stats.avg_rate)}</div></div>
-    <div class="stat-card"><div class="stat-label">Payment Verified</div><div class="stat-value" style="font-size:20px;color:var(--success)">${verifiedPct}%</div><div class="stat-sub">${fmt$(verifiedAmt)} of ${fmt$(totalVerif)}</div></div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
+    ${[
+      ['Total Revenue', fmt$(stats.total_amount), C1],
+      ['Total Hours', fmtNum(stats.total_hours)+' hrs', C1],
+      ['Total Projects', fmtNum(stats.total_projects), C1],
+      ['Avg Rate / Hr', fmt$(stats.avg_rate), C1],
+      ['Payment Verified', verifiedPct+'%', C2],
+    ].map(([label,val,col]) => `
+      <div style="${cardStyle};border-top:4px solid ${col}">
+        <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${label}</div>
+        <div style="font-size:20px;font-weight:700;color:${col}">${val}</div>
+      </div>`).join('')}
   </div>
 
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Monthly Revenue Trend</h3>
-      ${vBarChart(stats.by_month || [])}
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">Monthly Revenue Trend</h3>
+      ${vBarChart(stats.by_month||[])}
     </div>
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Payment Verification</h3>
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">Payment Verification</h3>
       ${donutChart()}
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by PM</h3>
-      ${hBarChart(stats.by_pm || [], 'pm_name', 'amount', fmt$)}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">PM Performance</h3>
+      ${dualBar(stats.by_pm||[], 'pm_name')}
     </div>
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by Industry</h3>
-      ${hBarChart(stats.by_industry || [], 'industry', 'amount', fmt$)}
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by Category</h3>
-      ${hBarChart(stats.by_category || [], 'category', 'amount', fmt$)}
-    </div>
-    <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Hours by Team Member</h3>
-      ${hBarChart(stats.by_member || [], 'member', 'hours', fmtNum)}
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">Team Member Performance</h3>
+      ${dualBar(stats.by_member||[], 'member')}
     </div>
   </div>
 
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">Revenue by Industry</h3>
+      ${singleBar(stats.by_industry||[], 'industry', 'amount', shorten, C1)}
+    </div>
+    <div style="${cardStyle}">
+      <h3 style="${headStyle}">Revenue by Category</h3>
+      ${singleBar(stats.by_category||[], 'category', 'amount', shorten, C2)}
+    </div>
+  </div>
   `;
-
-  window._billableRecords = records;
 }
 
-function renderBillableRows(rows) {
-  if (!rows.length) return '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text-muted)">No records found</td></tr>';
-  return rows.map(r => `<tr style="border-bottom:1px solid var(--border)">
-    <td style="padding:5px 8px;white-space:nowrap">${r.date || '—'}</td>
-    <td style="padding:5px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.company_name||''}">${r.company_name || '—'}</td>
-    <td style="padding:5px 8px;white-space:nowrap;font-family:monospace;font-size:11px">${r.case_code || '—'}</td>
-    <td style="padding:5px 8px;white-space:nowrap">${r.pm_name || '—'}</td>
-    <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.primary_category||''}">${r.primary_category || '—'}</td>
-    <td style="padding:5px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.project_name||''}">${r.project_name || '—'}</td>
-    <td style="text-align:right;padding:5px 8px">${r.billable_hours != null ? r.billable_hours : '—'}</td>
-    <td style="text-align:right;padding:5px 8px">${r.charge_rate != null ? fmtNum(r.charge_rate) : '—'}</td>
-    <td style="text-align:right;padding:5px 8px;font-weight:500">${r.total_amount != null ? fmt$(r.total_amount) : '—'}</td>
-    <td style="padding:5px 8px"><span style="padding:2px 8px;border-radius:99px;font-size:11px;background:${r.project_status==='Delivered'?'var(--success-light)':r.project_status==='Ongoing'?'var(--info-light)':'var(--border)'};color:${r.project_status==='Delivered'?'var(--success)':r.project_status==='Ongoing'?'var(--info)':'var(--text-muted)'}">${r.project_status||'—'}</span></td>
-    <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.industry || '—'}</td>
-    <td style="padding:5px 8px"><span style="color:${r.verified_payment==='Yes'?'var(--success)':'var(--text-muted)'};font-weight:500">${r.verified_payment || '—'}</span></td>
-  </tr>`).join('');
-}
-
-function filterBillableRecords() {
-  const q = ($('br-search')?.value || '').toLowerCase();
-  const rows = (window._billableRecords || []).filter(r =>
-    !q || [r.company_name, r.case_code, r.pm_name, r.project_name, r.primary_category, r.industry, r.project_status]
-      .some(v => v && v.toLowerCase().includes(q))
-  );
-  const tbody = $('br-tbody');
-  if (tbody) tbody.innerHTML = renderBillableRows(rows);
-}
 
 function applyBillableFilters() {
   billableFilters.pm = $('bf-pm')?.value || '';
@@ -3407,6 +3431,7 @@ async function importBillable() {
       const data = btoa(String.fromCharCode(...new Uint8Array(buf)));
       const result = await api('POST', '/api/billable/import', { data });
       alert(`Import complete: ${result.imported} new records, ${result.updated} updated.`);
+      _billableOptions = null;
       loadBillable();
     } catch (e) {
       alert('Import failed: ' + e.message);
