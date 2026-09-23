@@ -3242,120 +3242,125 @@ function renderBillable(stats, options) {
   }
 
   const MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const ss = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
 
-  // Compact horizontal bar row
-  function barRow(label, value, pct, valStr, color) {
-    return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6">
-      <span style="font-size:12px;font-weight:500;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
-      <span style="font-size:12px;font-weight:700;color:${color};text-align:right;white-space:nowrap">${valStr}</span>
-      <div style="height:12px;background:#e9f5f2;border-radius:6px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${color};border-radius:6px"></div>
-      </div>
-      <span style="font-size:11px;color:#9ca3af;text-align:right">${pct}%</span>
-    </div>`;
-  }
+  const card = (title, content) => `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px">
+    <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.7px;padding-bottom:10px;border-bottom:2px solid #d1fae5;margin-bottom:14px">${title}</div>
+    ${content}
+  </div>`;
 
-  function pmChart(data) {
+  // Single bar row: label | bar | value | sub
+  function barRows(data, labelKey, amtKey, hrsKey, n=6) {
     if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
-    const top = data.slice(0,6);
-    const maxAmt = Math.max(...top.map(r=>+(r.amount)||0),1);
-    return top.map(r => barRow(r.pm_name||'—', r.amount, Math.round((+(r.amount)||0)/maxAmt*100), shorten(r.amount), C1)).join('');
-  }
-
-  function memberChart(data) {
-    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
-    const top = data.slice(0,6);
-    const maxHrs = Math.max(...top.map(r=>+(r.hours)||0),1);
-    return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;gap:10px;padding:0 0 6px;border-bottom:2px solid #e9f5f2;margin-bottom:4px">
-      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">Member</span>
+    const top = data.slice(0,n);
+    const total = top.reduce((s,r)=>s+(+(r[amtKey])||0),0)||1;
+    const maxAmt = Math.max(...top.map(r=>+(r[amtKey])||0),1);
+    const thead = `<div style="display:grid;grid-template-columns:1fr 56px ${hrsKey?'60px ':''} 80px;gap:8px;padding:0 0 6px;border-bottom:1px solid #e5e7eb;margin-bottom:2px">
+      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">Name</span>
+      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right">${hrsKey?'Hrs':''}</span>
+      ${hrsKey?'':''}
       <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right">Revenue</span>
-      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">Hours</span>
-      <span></span>
-    </div>` + top.map(r => {
-      const pct = Math.round((+(r.hours)||0)/maxHrs*100);
-      return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6">
-        <span style="font-size:12px;font-weight:500;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.member||'—'}</span>
-        <span style="font-size:12px;font-weight:700;color:${C1};text-align:right;white-space:nowrap">${shorten(r.amount)}</span>
-        <div style="height:12px;background:#e9f5f2;border-radius:6px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${C2};border-radius:6px"></div>
+    </div>`;
+    const rows = top.map(r => {
+      const amt = +(r[amtKey])||0;
+      const hrs = hrsKey ? +(r[hrsKey])||0 : null;
+      const pct = Math.round(amt/maxAmt*100);
+      const contrib = Math.round(amt/total*100);
+      return `<div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:12px;font-weight:600;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%">${r[labelKey]||'—'}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+            ${hrs!==null ? `<span style="font-size:11px;color:#6b7280;white-space:nowrap">${fmtNum(hrs)} hrs</span>` : ''}
+            <span style="font-size:12px;font-weight:700;color:${C1};white-space:nowrap">${shorten(amt)}</span>
+            <span style="font-size:10px;color:#9ca3af;white-space:nowrap;min-width:28px;text-align:right">${contrib}%</span>
+          </div>
         </div>
-        <span style="font-size:11px;color:#9ca3af;text-align:right">${fmtNum(r.hours)}h</span>
+        <div style="height:8px;background:#e9f5f2;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${C1};border-radius:4px"></div>
+        </div>
+      </div>`;
+    }).join('');
+    return rows;
+  }
+
+  function clientRows(data, n=6) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const top = data.slice(0,n);
+    const total = top.reduce((s,r)=>s+(+(r.amount)||0),0)||1;
+    const maxAmt = Math.max(...top.map(r=>+(r.amount)||0),1);
+    return top.map(r => {
+      const amt = +(r.amount)||0;
+      const pct = Math.round(amt/maxAmt*100);
+      const contrib = Math.round(amt/total*100);
+      return `<div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <span style="font-size:12px;font-weight:600;color:#1f2937;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%">${r.client||'—'}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+            <span style="font-size:11px;color:#6b7280;white-space:nowrap">${fmtNum(r.hours)} hrs</span>
+            <span style="font-size:12px;font-weight:700;color:${C2};white-space:nowrap">${shorten(amt)}</span>
+            <span style="font-size:10px;color:#9ca3af;white-space:nowrap;min-width:28px;text-align:right">${contrib}%</span>
+          </div>
+        </div>
+        <div style="height:8px;background:#e9f5f2;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${C2};border-radius:4px"></div>
+        </div>
       </div>`;
     }).join('');
   }
 
-  function industryChart(data) {
-    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
-    const top = data.slice(0,6);
-    const maxAmt = Math.max(...top.map(r=>+(r.amount)||0),1);
-    return top.map(r => barRow(r.industry||'Unknown', r.amount, Math.round((+(r.amount)||0)/maxAmt*100), shorten(r.amount), C2)).join('');
-  }
-
   function monthlyChart(data) {
     if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
-    const display = data.slice(0,8).reverse();
+    const display = data.slice(0,10).reverse();
     const maxAmt = Math.max(...display.map(r=>+(r.amount)||0),1);
-    const BW=52, GAP=12, H=130, W=display.length*(BW+GAP)+GAP;
+    const BW=50, GAP=10, H=140, W=display.length*(BW+GAP)+GAP;
     const bars = display.map((r,i)=>{
-      const amt=+(r.amount)||0, bh=Math.round(amt/maxAmt*H);
+      const amt=+(r.amount)||0, bh=Math.max(Math.round(amt/maxAmt*H),2);
       const x=GAP+i*(BW+GAP);
       const parts=(r.month||'').split('-');
       const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
       return `<g>
-        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="5" opacity="0.92"><title>${r.month}: ${fmt$(amt)}</title></rect>
-        <text x="${x+BW/2}" y="${H-bh-4}" text-anchor="middle" font-size="8.5" fill="#6b7280">${shorten(amt)}</text>
-        <text x="${x+BW/2}" y="${H+13}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
+        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="5" opacity="0.9"><title>${r.month}: ${fmt$(amt)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title></rect>
+        <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="8" fill="#6b7280">${shorten(amt)}</text>
+        <text x="${x+BW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
       </g>`;
     }).join('');
     return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+18}" style="width:100%;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>
-      ${bars}
+      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${bars}
     </svg></div>`;
   }
 
-  function verifiedDonut() {
-    const R=46,cx=60,cy=60,sw=16,circ=2*Math.PI*R;
-    const dash=circ*verifiedPct/100,offset=circ*.25;
-    return `<div style="display:flex;align-items:center;gap:20px">
-      <svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#e9f5f2" stroke-width="${sw}"/>
-        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${C2}" stroke-width="${sw}"
-          stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
-        <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">${verifiedPct}%</text>
-        <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="10" fill="#9ca3af">Verified</text>
-      </svg>
-      <div>
-        <div style="margin-bottom:10px">
-          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Verified</div>
-          <div style="font-size:16px;font-weight:700;color:${C2}">${fmt$(verifiedAmt)}</div>
+  function statusChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const total = data.reduce((s,r)=>s+(+(r.count)||0),0)||1;
+    const colors = {'Delivered':'#16a34a','Ongoing':'#2563eb','On Hold':'#d97706','Cancelled':'#dc2626'};
+    return data.map(r=>{
+      const pct = Math.round((+(r.count)||0)/total*100);
+      const col = colors[r.status] || C1;
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${col};flex-shrink:0"></span>
+        <span style="font-size:12px;font-weight:500;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.status}</span>
+        <span style="font-size:12px;font-weight:700;color:${col};white-space:nowrap">${r.count}</span>
+        <div style="width:80px;height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden;flex-shrink:0">
+          <div style="height:100%;width:${pct}%;background:${col};border-radius:4px"></div>
         </div>
-        <div>
-          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Pending</div>
-          <div style="font-size:16px;font-weight:700;color:#d1d5db">${fmt$(unverifiedAmt)}</div>
-        </div>
-      </div>
-    </div>`;
+        <span style="font-size:10px;color:#9ca3af;width:28px;text-align:right">${pct}%</span>
+      </div>`;
+    }).join('');
   }
 
-  const ss = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
-  const card = (content, title='') => `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px">
-    ${title ? `<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e9f5f2">${title}</div>` : ''}
-    ${content}
-  </div>`;
-
   const kpis = [
-    ['Total Revenue', fmt$(stats.total_amount)],
-    ['Total Hours', fmtNum(stats.total_hours)+' hrs'],
-    ['Total Projects', fmtNum(stats.total_projects)],
-    ['Avg Rate / Hr', fmt$(stats.avg_rate)],
-    ['Payment Verified', verifiedPct+'%'],
-  ].map(([l,v],i) => `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;border-left:4px solid ${i<4?C1:C2}">
-    <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${l}</div>
-    <div style="font-size:22px;font-weight:800;color:${i<4?C1:C2}">${v}</div>
+    ['Total Revenue', fmt$(stats.total_amount), C1],
+    ['Total Hours', fmtNum(stats.total_hours)+' hrs', C1],
+    ['Total Projects', fmtNum(stats.total_projects), C1],
+    ['Avg Rate / Hr', fmt$(stats.avg_rate), C2],
+    ['Active Projects', (stats.by_status||[]).find(s=>s.status==='Ongoing')?.count||0, '#2563eb'],
+  ].map(([l,v,col])=>`<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;border-left:4px solid ${col}">
+    <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${l}</div>
+    <div style="font-size:22px;font-weight:800;color:${col}">${v}</div>
   </div>`).join('');
 
   root.innerHTML = `
-  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px;background:var(--surface);padding:10px 14px;border-radius:10px;border:1px solid var(--border)">
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;background:var(--surface);padding:10px 14px;border-radius:10px;border:1px solid var(--border)">
     <select id="bf-pm" style="${ss}">${opt(pms,billableFilters.pm,'PMs')}</select>
     <select id="bf-month" style="${ss}">${monthOpt(months,billableFilters.month)}</select>
     <select id="bf-category" style="${ss}">${opt(cats,billableFilters.category,'Categories')}</select>
@@ -3366,21 +3371,30 @@ function renderBillable(stats, options) {
     ${isManager ? `<button class="btn btn-secondary" onclick="importBillable()" style="padding:6px 16px;margin-left:auto">↑ Import Excel</button>` : ''}
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">${kpis}</div>
+  <!-- 1. Executive Summary -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px">${kpis}</div>
 
-  <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px">
-    ${card(monthlyChart(stats.by_month||[]), 'Monthly Revenue Trend')}
-    ${card(verifiedDonut(), 'Payment Verification')}
+  <!-- 2. Trend Analysis -->
+  <div style="margin-bottom:14px">
+    ${card('Trend Analysis — Monthly Revenue & Hours', monthlyChart(stats.by_month||[]))}
   </div>
 
+  <!-- 3. PM Performance + Client Analysis -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    ${card(pmChart(stats.by_pm||[]), 'Top PMs by Revenue')}
-    ${card(memberChart(stats.by_member||[]), 'Top Team Members')}
+    ${card('PM Performance — Revenue & Hours', barRows(stats.by_pm||[], 'pm_name', 'amount', 'hours'))}
+    ${card('Client Analysis — Revenue Contribution', clientRows(stats.by_client||[]))}
   </div>
 
+  <!-- 4. Team Member + Project Status -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    ${card(industryChart(stats.by_industry||[]), 'Revenue by Industry')}
-    ${card(industryChart(stats.by_category||[].map(r=>({...r,industry:r.category}))), 'Revenue by Category')}
+    ${card('Team / Employee Analysis', barRows(stats.by_member||[], 'member', 'amount', 'hours'))}
+    ${card('Project Status / Pipeline', statusChart(stats.by_status||[]))}
+  </div>
+
+  <!-- 5. Work Type + Industry -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    ${card('Work Type Analysis — Service Categories', barRows(stats.by_category||[], 'category', 'amount', null))}
+    ${card('Industry Analysis', barRows(stats.by_industry||[], 'industry', 'amount', null))}
   </div>
   `;
 }

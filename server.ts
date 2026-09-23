@@ -1589,10 +1589,11 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
       .map(([member, v]) => ({ member, ...v }))
       .sort((a, b) => b.amount - a.amount);
 
-    // verified vs unverified
-    const verifiedRows = (await query(
-      `SELECT verified_payment, COUNT(*) as count, COALESCE(SUM(total_amount),0) as amount
-       FROM billable_records ${where} GROUP BY verified_payment`, args)).rows;
+    const byClient = (await query(
+      `SELECT COALESCE(NULLIF(company_name,''),'Unknown') as client, COUNT(*) as projects,
+              COALESCE(SUM(billable_hours),0) as hours, COALESCE(SUM(total_amount),0) as amount,
+              CASE WHEN SUM(billable_hours)>0 THEN ROUND((SUM(total_amount)/SUM(billable_hours))::numeric,2) ELSE 0 END as avg_rate
+       FROM billable_records ${where} GROUP BY company_name ORDER BY amount DESC`, args)).rows;
 
     res.json({
       total_amount: totals.total_amount,
@@ -1605,7 +1606,7 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
       by_month: byMonth,
       by_member: byMember,
       by_status: byStatus,
-      verified: verifiedRows,
+      by_client: byClient,
     });
   } catch (e: any) { console.error(e); res.status(500).json({ error: e.message || 'Server error' }); }
 });
