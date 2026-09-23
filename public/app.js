@@ -3336,9 +3336,11 @@ function renderBillable(stats, options) {
         const x=GAP+i*(BW+GAP);
         const parts=(r.month||'').split('-');
         const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
+        const labelY = bh > 22 ? H-bh+14 : H-bh-4;
+        const labelFill = bh > 22 ? '#fff' : '#374151';
         return `<g>
           <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${color}" rx="4"><title>${labelFn(val)}</title></rect>
-          <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">${labelFn(val)}</text>
+          <text x="${x+BW/2}" y="${labelY}" text-anchor="middle" font-size="9" font-weight="600" fill="${labelFill}">${labelFn(val)}</text>
           <text x="${x+BW/2}" y="${H+15}" text-anchor="middle" font-size="10" fill="#9ca3af">${ml}</text>
         </g>`;
       }).join('');
