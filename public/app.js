@@ -3238,37 +3238,37 @@ function renderBillable(stats, records) {
     }).join('');
   }
 
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   function vBarChart(data) {
     if (!data || !data.length) return '<p style="color:var(--text-muted);font-size:13px;padding:8px">No monthly data</p>';
-    const display = data.slice(0, 18).reverse();
+    const display = data.slice(0, 12).reverse();
     const maxAmt = Math.max(...display.map(r => +(r.amount) || 0), 1);
-    const maxHrs = Math.max(...display.map(r => +(r.hours) || 0), 1);
     const n = display.length;
-    const W = 600, H = 140, pad = 4;
-    const bw = Math.floor((W - pad * (n + 1)) / n);
+    const BAR_W = 52, GAP = 16, H = 160, LABEL_H = 30, VAL_H = 20;
+    const W = n * (BAR_W + GAP) + GAP;
     const bars = display.map((r, i) => {
-      const h = Math.round((+(r.amount) || 0) / maxAmt * H);
-      const hh = Math.round((+(r.hours) || 0) / maxHrs * H);
-      const x = pad + i * (bw + pad);
-      const label = (r.month || '').slice(2); // "2026-01" → "26-01"
+      const amt = +(r.amount) || 0;
+      const barH = Math.round(amt / maxAmt * H);
+      const x = GAP + i * (BAR_W + GAP);
+      const y = H - barH;
+      // format month: "2026-07" → "Jul '26"
+      const parts = (r.month || '').split('-');
+      const mLabel = parts.length === 2 ? `${MONTH_NAMES[+parts[1]-1] || parts[1]} '${parts[0].slice(2)}` : r.month;
+      // value label: shorten large numbers
+      const valLabel = amt >= 10000000 ? `₹${(amt/10000000).toFixed(1)}Cr` : amt >= 100000 ? `₹${(amt/100000).toFixed(1)}L` : fmt$(amt);
       return `<g>
-        <rect x="${x}" y="${H - h}" width="${bw}" height="${h}" fill="#4f6ef7" rx="2" opacity="0.85">
-          <title>${r.month}: ${fmt$(r.amount)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title>
+        <rect x="${x}" y="${y}" width="${BAR_W}" height="${barH}" fill="#4f6ef7" rx="4">
+          <title>${r.month}: ${fmt$(amt)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title>
         </rect>
-        <rect x="${x + Math.floor(bw*0.55)}" y="${H - hh}" width="${Math.floor(bw*0.35)}" height="${hh}" fill="#22c55e" rx="2" opacity="0.7">
-          <title>Hours: ${fmtNum(r.hours)}</title>
-        </rect>
-        <text x="${x + bw/2}" y="${H + 13}" text-anchor="middle" font-size="8" fill="var(--text-muted)">${label}</text>
+        <text x="${x + BAR_W/2}" y="${y - 5}" text-anchor="middle" font-size="9" fill="var(--text-muted)" font-weight="500">${valLabel}</text>
+        <text x="${x + BAR_W/2}" y="${H + 16}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${mLabel}</text>
       </g>`;
     }).join('');
-    return `<div>
-      <div style="display:flex;gap:12px;margin-bottom:8px;font-size:11px">
-        <span><span style="display:inline-block;width:10px;height:10px;background:#4f6ef7;border-radius:2px;margin-right:4px"></span>Revenue</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:4px"></span>Hours</span>
-      </div>
-      <div style="overflow-x:auto">
-        <svg viewBox="0 0 ${W} ${H+18}" style="width:100%;min-width:280px;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
-      </div>
+    return `<div style="overflow-x:auto">
+      <svg viewBox="0 0 ${W} ${H + LABEL_H + VAL_H}" style="width:100%;min-width:${Math.min(W,300)}px;height:${H + LABEL_H + VAL_H}px" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="var(--border)" stroke-width="1"/>
+        ${bars}
+      </svg>
     </div>`;
   }
 
@@ -3317,7 +3317,7 @@ function renderBillable(stats, records) {
 
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Monthly Revenue & Hours Trend</h3>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Monthly Revenue Trend</h3>
       ${vBarChart(stats.by_month || [])}
     </div>
     <div class="card">
