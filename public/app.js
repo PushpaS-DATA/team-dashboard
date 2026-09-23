@@ -3348,34 +3348,6 @@ function renderBillable(stats, records) {
     </div>
   </div>
 
-  <div class="card">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-      <h3 style="font-size:14px;font-weight:600">All Records (${records.length})</h3>
-      <div class="search-wrap" style="max-width:300px;flex:1">
-        <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-        <input type="text" id="br-search" placeholder="Search records…" oninput="filterBillableRecords()" />
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-    <table id="br-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
-      <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);position:sticky;top:0;background:var(--surface)">
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Date</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Company</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Case Code</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">PM</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Category</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Project</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Hours</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Rate</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Amount</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Status</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Industry</th>
-        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Verified</th>
-      </tr></thead>
-      <tbody id="br-tbody">${renderBillableRows(records)}</tbody>
-    </table>
-    </div>
-  </div>
   `;
 
   window._billableRecords = records;
