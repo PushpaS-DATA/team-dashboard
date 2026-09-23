@@ -3335,15 +3335,15 @@ function renderBillable(stats, options) {
     const hrsBars = makeBars(H, maxHrs, r=>+(r.hours)||0, v=>`${fmtNum(v)}h`, C2);
 
     const svgStyle = `width:100%;min-width:${Math.min(W,260)}px;height:${H+20}px`;
-    return `<div>
-      <div style="margin-bottom:6px">
-        <div style="font-size:11px;font-weight:700;color:${C1};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">▮ Revenue</div>
+    return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:${C1};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">▮ Revenue</div>
         <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+20}" style="${svgStyle}" xmlns="http://www.w3.org/2000/svg">
           <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${revBars}
         </svg></div>
       </div>
-      <div style="border-top:1px solid #f3f4f6;padding-top:12px;margin-top:4px">
-        <div style="font-size:11px;font-weight:700;color:${C2};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">▮ Hours</div>
+      <div style="border-left:1px solid #f3f4f6;padding-left:16px">
+        <div style="font-size:11px;font-weight:700;color:${C2};text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">▮ Hours</div>
         <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+20}" style="${svgStyle}" xmlns="http://www.w3.org/2000/svg">
           <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${hrsBars}
         </svg></div>
