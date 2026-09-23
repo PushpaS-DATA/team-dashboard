@@ -3313,32 +3313,41 @@ function renderBillable(stats, options) {
     const display = data.slice(0,10).reverse();
     const maxAmt = Math.max(...display.map(r=>+(r.amount)||0),1);
     const maxHrs = Math.max(...display.map(r=>+(r.hours)||0),1);
-    const BW=22, GAP=3, GRP=18, H=140;
-    const groupW = BW*2 + GAP;
-    const W = display.length*(groupW+GRP)+GRP;
-    const bars = display.map((r,i)=>{
-      const amt=+(r.amount)||0, hrs=+(r.hours)||0;
-      const ah=Math.max(Math.round(amt/maxAmt*H),2);
-      const hh=Math.max(Math.round(hrs/maxHrs*H),2);
-      const gx=GRP+i*(groupW+GRP);
-      const parts=(r.month||'').split('-');
-      const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
-      return `<g>
-        <rect x="${gx}" y="${H-ah}" width="${BW}" height="${ah}" fill="${C1}" rx="3" opacity="0.9"><title>Revenue: ${fmt$(amt)}</title></rect>
-        <text x="${gx+BW/2}" y="${H-ah-4}" text-anchor="middle" font-size="7.5" fill="#6b7280">${shorten(amt)}</text>
-        <rect x="${gx+BW+GAP}" y="${H-hh}" width="${BW}" height="${hh}" fill="${C2}" rx="3" opacity="0.85"><title>Hours: ${fmtNum(hrs)}</title></rect>
-        <text x="${gx+BW+GAP+BW/2}" y="${H-hh-4}" text-anchor="middle" font-size="7.5" fill="#6b7280">${fmtNum(hrs)}h</text>
-        <text x="${gx+groupW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
-      </g>`;
-    }).join('');
+    const n = display.length;
+    const BW = Math.max(36, Math.min(64, Math.floor(560/n)-14));
+    const GAP = 14, H = 110, W = n*(BW+GAP)+GAP;
+
+    function makeBars(H, maxVal, valFn, labelFn, color) {
+      return display.map((r,i)=>{
+        const val=valFn(r), bh=Math.max(Math.round(val/maxVal*H),2);
+        const x=GAP+i*(BW+GAP);
+        const parts=(r.month||'').split('-');
+        const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
+        return `<g>
+          <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${color}" rx="4"><title>${labelFn(val)}</title></rect>
+          <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">${labelFn(val)}</text>
+          <text x="${x+BW/2}" y="${H+15}" text-anchor="middle" font-size="10" fill="#9ca3af">${ml}</text>
+        </g>`;
+      }).join('');
+    }
+
+    const revBars = makeBars(H, maxAmt, r=>+(r.amount)||0, v=>shorten(v), C1);
+    const hrsBars = makeBars(H, maxHrs, r=>+(r.hours)||0, v=>`${fmtNum(v)}h`, C2);
+
+    const svgStyle = `width:100%;min-width:${Math.min(W,260)}px;height:${H+20}px`;
     return `<div>
-      <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;color:#6b7280">
-        <span><span style="display:inline-block;width:10px;height:10px;background:${C1};border-radius:2px;margin-right:4px;vertical-align:middle"></span>Revenue</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:${C2};border-radius:2px;margin-right:4px;vertical-align:middle"></span>Hours</span>
+      <div style="margin-bottom:6px">
+        <div style="font-size:11px;font-weight:700;color:${C1};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">▮ Revenue</div>
+        <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+20}" style="${svgStyle}" xmlns="http://www.w3.org/2000/svg">
+          <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${revBars}
+        </svg></div>
       </div>
-      <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+18}" style="width:100%;min-width:${Math.min(W,300)}px;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">
-        <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${bars}
-      </svg></div>
+      <div style="border-top:1px solid #f3f4f6;padding-top:12px;margin-top:4px">
+        <div style="font-size:11px;font-weight:700;color:${C2};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">▮ Hours</div>
+        <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+20}" style="${svgStyle}" xmlns="http://www.w3.org/2000/svg">
+          <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${hrsBars}
+        </svg></div>
+      </div>
     </div>`;
   }
 
