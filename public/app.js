@@ -3388,7 +3388,7 @@ function renderBillable(stats, options) {
     ['Total Hours', fmtNum(stats.total_hours)+' hrs', C1],
     ['Total Projects', fmtNum(stats.total_projects), C1],
     ['Avg Rate / Hr', fmt$(stats.avg_rate), C2],
-    ['Active Projects', (stats.by_status||[]).find(s=>s.status==='Ongoing')?.count||0, '#2563eb'],
+    ['Active Projects', (stats.by_status||[]).find(s=>s.status==='Ongoing')?.projects||0, '#2563eb'],
   ].map(([l,v,col])=>`<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;border-left:4px solid ${col}">
     <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px">${l}</div>
     <div style="font-size:22px;font-weight:800;color:${col}">${v}</div>

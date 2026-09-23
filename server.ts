@@ -1576,7 +1576,9 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
        FROM billable_records ${where} ${dateCondition} GROUP BY SUBSTRING(date,1,7) ORDER BY month DESC`, args)).rows;
 
     const byStatus = (await query(
-      `SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status, COUNT(*) as count
+      `SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status,
+              COUNT(*) as count,
+              COUNT(DISTINCT NULLIF(project_name,'')) as projects
        FROM billable_records ${where} GROUP BY project_status ORDER BY count DESC`, args)).rows;
 
     // by_member: split team_members comma-separated
