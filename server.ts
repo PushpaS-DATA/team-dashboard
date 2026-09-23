@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import cron from 'node-cron';
+import XLSX from 'xlsx';
 
 // Return timestamps as strings so existing .split('T') logic works
 types.setTypeParser(1114, (val: string) => val); // TIMESTAMP WITHOUT TIME ZONE
@@ -163,6 +164,32 @@ async function initSchema() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(poll_id, user_id)
     );
+
+    CREATE TABLE IF NOT EXISTS billable_records (
+      id SERIAL PRIMARY KEY,
+      date TEXT,
+      company_name TEXT,
+      requestor_name TEXT,
+      case_code TEXT UNIQUE,
+      pm_name TEXT,
+      primary_category TEXT,
+      secondary_category TEXT,
+      project_name TEXT,
+      billable_hours REAL,
+      charge_rate REAL,
+      total_amount REAL,
+      verified_payment TEXT,
+      client_email TEXT,
+      project_status TEXT,
+      team_leads TEXT,
+      team_members TEXT,
+      industry TEXT,
+      site_type TEXT,
+      client_country TEXT,
+      billable_notes TEXT,
+      created_by TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   // Migrations: add columns if not present (for existing PostgreSQL databases)
@@ -180,6 +207,28 @@ async function initSchema() {
   await query(`ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS avg_feedback_rating REAL`);
   await query(`ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS learning_curve REAL`);
   await query(`ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS area_of_improvement TEXT`);
+  // billable_records migrations
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS date TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS company_name TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS requestor_name TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS case_code TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS pm_name TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS primary_category TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS secondary_category TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS project_name TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS billable_hours REAL`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS charge_rate REAL`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS total_amount REAL`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS verified_payment TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS client_email TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS project_status TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS team_leads TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS team_members TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS industry TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS site_type TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS client_country TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS billable_notes TEXT`);
+  await query(`ALTER TABLE billable_records ADD COLUMN IF NOT EXISTS created_by TEXT`);
   // Ensure alice is admin
   await query(`UPDATE users SET is_admin=1 WHERE email='alice@company.com' AND is_admin=0`);
 }
@@ -1403,6 +1452,160 @@ app.post('/api/polls/:id/respond', requireAuth, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Server error' }); }
+});
+
+// ── Billable ──────────────────────────────────────────────────────────────────
+
+app.post('/api/billable/import', requireManager, express.json({ limit: '50mb' }), async (req, res) => {
+  try {
+    const { data } = req.body; // base64-encoded xlsx
+    if (!data) return res.status(400).json({ error: 'No data provided' });
+    const buf = Buffer.from(data, 'base64');
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: false });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    let imported = 0, updated = 0;
+    for (const row of rows) {
+      const vals = [
+        String(row['Date'] || '').trim(),
+        String(row['Company Name'] || '').trim(),
+        String(row['Requestor Name'] || '').trim(),
+        String(row['Case Code'] || '').trim(),
+        String(row['PM Name'] || '').trim(),
+        String(row['Primary Category'] || '').trim(),
+        String(row['Secondary Category'] || '').trim(),
+        String(row['Project Name'] || '').trim(),
+        row['Billable Hours'] !== '' ? Number(row['Billable Hours']) : null,
+        row['Charge Rate'] !== '' ? Number(row['Charge Rate']) : null,
+        row['Total Amount'] !== '' ? Number(row['Total Amount']) : null,
+        String(row['Verified Payment'] || '').trim(),
+        String(row['Client Email'] || '').trim(),
+        String(row['Project Status'] || '').trim(),
+        String(row['Team Leads'] || '').trim(),
+        String(row['Team Members'] || '').trim(),
+        String(row['Industry'] || '').trim(),
+        String(row['Site Type'] || '').trim(),
+        String(row['Client Country'] || '').trim(),
+        String(row['Billable Notes'] || '').trim(),
+        String(row['Created By'] || '').trim(),
+      ];
+      const caseCode = vals[3];
+      if (!caseCode) continue;
+      const existing = (await query('SELECT id FROM billable_records WHERE case_code=$1', [caseCode])).rows[0];
+      await query(
+        `INSERT INTO billable_records
+          (date,company_name,requestor_name,case_code,pm_name,primary_category,secondary_category,
+           project_name,billable_hours,charge_rate,total_amount,verified_payment,client_email,
+           project_status,team_leads,team_members,industry,site_type,client_country,billable_notes,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+         ON CONFLICT(case_code) DO UPDATE SET
+           date=EXCLUDED.date, company_name=EXCLUDED.company_name, requestor_name=EXCLUDED.requestor_name,
+           pm_name=EXCLUDED.pm_name, primary_category=EXCLUDED.primary_category,
+           secondary_category=EXCLUDED.secondary_category, project_name=EXCLUDED.project_name,
+           billable_hours=EXCLUDED.billable_hours, charge_rate=EXCLUDED.charge_rate,
+           total_amount=EXCLUDED.total_amount, verified_payment=EXCLUDED.verified_payment,
+           client_email=EXCLUDED.client_email, project_status=EXCLUDED.project_status,
+           team_leads=EXCLUDED.team_leads, team_members=EXCLUDED.team_members,
+           industry=EXCLUDED.industry, site_type=EXCLUDED.site_type,
+           client_country=EXCLUDED.client_country, billable_notes=EXCLUDED.billable_notes,
+           created_by=EXCLUDED.created_by`,
+        vals
+      );
+      if (existing) updated++; else imported++;
+    }
+    res.json({ imported, updated });
+  } catch (e: any) { console.error(e); res.status(500).json({ error: e.message || 'Server error' }); }
+});
+
+function buildBillableWhere(params: any): { where: string; args: any[] } {
+  const conditions: string[] = [];
+  const args: any[] = [];
+  let idx = 1;
+  if (params.pm) { conditions.push(`pm_name ILIKE $${idx++}`); args.push(`%${params.pm}%`); }
+  if (params.month) { conditions.push(`date LIKE $${idx++}`); args.push(`${params.month}%`); }
+  if (params.category) { conditions.push(`(primary_category ILIKE $${idx} OR secondary_category ILIKE $${idx})`); idx++; args.push(`%${params.category}%`); }
+  if (params.industry) { conditions.push(`industry ILIKE $${idx++}`); args.push(`%${params.industry}%`); }
+  if (params.status) { conditions.push(`project_status ILIKE $${idx++}`); args.push(`%${params.status}%`); }
+  const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+  return { where, args };
+}
+
+app.get('/api/billable/records', requireAuth, async (req, res) => {
+  try {
+    const { where, args } = buildBillableWhere(req.query);
+    const rows = (await query(`SELECT * FROM billable_records ${where} ORDER BY date DESC, id DESC LIMIT 2000`, args)).rows;
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message || 'Server error' }); }
+});
+
+app.get('/api/billable/stats', requireAuth, async (req, res) => {
+  try {
+    const { where, args } = buildBillableWhere(req.query);
+
+    const totals = (await query(
+      `SELECT COALESCE(SUM(total_amount),0) as total_amount,
+              COALESCE(SUM(billable_hours),0) as total_hours,
+              COUNT(*) as total_projects,
+              CASE WHEN SUM(billable_hours)>0 THEN ROUND((SUM(total_amount)/SUM(billable_hours))::numeric,2) ELSE 0 END as avg_rate
+       FROM billable_records ${where}`, args)).rows[0];
+
+    const byPm = (await query(
+      `SELECT pm_name, COUNT(*) as projects, COALESCE(SUM(billable_hours),0) as hours, COALESCE(SUM(total_amount),0) as amount
+       FROM billable_records ${where} GROUP BY pm_name ORDER BY amount DESC`, args)).rows;
+
+    const byIndustry = (await query(
+      `SELECT COALESCE(NULLIF(industry,''),'Unknown') as industry, COUNT(*) as projects, COALESCE(SUM(total_amount),0) as amount
+       FROM billable_records ${where} GROUP BY industry ORDER BY amount DESC`, args)).rows;
+
+    const byCategory = (await query(
+      `SELECT COALESCE(NULLIF(primary_category,''),'Unknown') as category, COUNT(*) as projects, COALESCE(SUM(total_amount),0) as amount
+       FROM billable_records ${where} GROUP BY primary_category ORDER BY amount DESC`, args)).rows;
+
+    const byMonth = (await query(
+      `SELECT SUBSTRING(date,1,7) as month, COUNT(*) as projects, COALESCE(SUM(total_amount),0) as amount, COALESCE(SUM(billable_hours),0) as hours
+       FROM billable_records ${where} WHERE date IS NOT NULL AND date != '' GROUP BY SUBSTRING(date,1,7) ORDER BY month DESC`, args)).rows;
+
+    const byStatus = (await query(
+      `SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status, COUNT(*) as count
+       FROM billable_records ${where} GROUP BY project_status ORDER BY count DESC`, args)).rows;
+
+    // by_member: split team_members comma-separated
+    const memberRows = (await query(
+      `SELECT team_members, billable_hours, total_amount FROM billable_records ${where} WHERE team_members IS NOT NULL AND team_members != ''`, args)).rows;
+    const memberMap: Record<string, { projects: number; hours: number; amount: number }> = {};
+    for (const r of memberRows) {
+      const names = (r.team_members as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+      for (const name of names) {
+        if (!memberMap[name]) memberMap[name] = { projects: 0, hours: 0, amount: 0 };
+        memberMap[name].projects++;
+        memberMap[name].hours += r.billable_hours || 0;
+        memberMap[name].amount += r.total_amount || 0;
+      }
+    }
+    const byMember = Object.entries(memberMap)
+      .map(([member, v]) => ({ member, ...v }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // verified vs unverified
+    const verifiedRows = (await query(
+      `SELECT verified_payment, COUNT(*) as count, COALESCE(SUM(total_amount),0) as amount
+       FROM billable_records ${where} GROUP BY verified_payment`, args)).rows;
+
+    res.json({
+      total_amount: totals.total_amount,
+      total_hours: totals.total_hours,
+      total_projects: totals.total_projects,
+      avg_rate: totals.avg_rate,
+      by_pm: byPm,
+      by_industry: byIndustry,
+      by_category: byCategory,
+      by_month: byMonth,
+      by_member: byMember,
+      by_status: byStatus,
+      verified: verifiedRows,
+    });
+  } catch (e: any) { console.error(e); res.status(500).json({ error: e.message || 'Server error' }); }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

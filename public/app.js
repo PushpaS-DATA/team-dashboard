@@ -58,7 +58,7 @@ function statusLabel(s) {
 
 /* ── Navigation ─────────────────────────────────────────────────────────── */
 function showPage(name) {
-  ['dashboard', 'goals', 'highlights', 'team', 'mygoals', 'teamrating'].forEach(p => {
+  ['dashboard', 'goals', 'highlights', 'team', 'mygoals', 'teamrating', 'billable'].forEach(p => {
     $(`${p}-section`).classList.toggle('hidden', p !== name);
   });
   document.querySelectorAll('.nav-link').forEach(l => {
@@ -70,6 +70,7 @@ function showPage(name) {
   if (name === 'team') loadTeam();
   if (name === 'mygoals') loadMyGoals();
   if (name === 'teamrating') loadTeamRating();
+  if (name === 'billable') loadBillable();
 }
 
 document.querySelectorAll('[data-page]').forEach(el => {
@@ -3166,4 +3167,269 @@ async function submitRatingForm(memberId, email) {
     errEl.textContent = e.message || 'Failed to save rating';
     errEl.style.display = 'block';
   }
+}
+
+/* ── Billable Dashboard ─────────────────────────────────────────────────── */
+
+let billableFilters = { pm: '', month: '', category: '', industry: '', status: '' };
+
+function fmt$(n) {
+  if (!n && n !== 0) return '—';
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
+}
+function fmtNum(n) {
+  if (!n && n !== 0) return '—';
+  return new Intl.NumberFormat('en-IN').format(Math.round(n));
+}
+
+async function loadBillable() {
+  const root = $('billable-root');
+  root.innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const qs = new URLSearchParams(billableFilters).toString();
+    const [stats, records] = await Promise.all([
+      api('GET', `/api/billable/stats?${qs}`),
+      api('GET', `/api/billable/records?${qs}`)
+    ]);
+    renderBillable(stats, records);
+  } catch (e) {
+    root.innerHTML = `<div class="empty-state" style="color:var(--danger)">${e.message}</div>`;
+  }
+}
+
+function renderBillable(stats, records) {
+  const root = $('billable-root');
+  const isManager = currentUser && (currentUser.role === 'manager' || currentUser.is_admin);
+
+  // collect unique filter options
+  const pms = [...new Set(records.map(r => r.pm_name).filter(Boolean))].sort();
+  const cats = [...new Set(records.map(r => r.primary_category).filter(Boolean))].sort();
+  const inds = [...new Set(records.map(r => r.industry).filter(Boolean))].sort();
+  const statuses = [...new Set(records.map(r => r.project_status).filter(Boolean))].sort();
+  const months = [...new Set(records.map(r => r.date ? r.date.slice(0,7) : '').filter(Boolean))].sort().reverse();
+
+  const verifiedAmt = (stats.verified || []).find(v => v.verified_payment === 'Yes')?.amount || 0;
+  const unverifiedAmt = (stats.verified || []).find(v => v.verified_payment !== 'Yes')?.amount || 0;
+
+  function opt(list, val, label) {
+    return `<option value="">All ${label}</option>` + list.map(x => `<option value="${x}" ${x===val?'selected':''}>${x}</option>`).join('');
+  }
+  function monthOpt(list, val) {
+    return `<option value="">All Months</option>` + list.map(m => `<option value="${m}" ${m===val?'selected':''}>${m}</option>`).join('');
+  }
+
+  root.innerHTML = `
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:20px;background:var(--surface);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)">
+    <select id="bf-pm" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(pms,billableFilters.pm,'PMs')}</select>
+    <select id="bf-month" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${monthOpt(months,billableFilters.month)}</select>
+    <select id="bf-category" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(cats,billableFilters.category,'Categories')}</select>
+    <select id="bf-industry" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(inds,billableFilters.industry,'Industries')}</select>
+    <select id="bf-status" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(statuses,billableFilters.status,'Statuses')}</select>
+    <button class="btn btn-primary" onclick="applyBillableFilters()" style="padding:6px 16px">Apply</button>
+    <button class="btn btn-secondary" onclick="clearBillableFilters()" style="padding:6px 16px">Clear</button>
+    ${isManager ? `<button class="btn btn-secondary" onclick="importBillable()" style="padding:6px 16px;margin-left:auto">↑ Import Excel</button>` : ''}
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="font-size:22px">${fmt$(stats.total_amount)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Hours</div><div class="stat-value" style="font-size:22px">${fmtNum(stats.total_hours)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value" style="font-size:22px">${fmtNum(stats.total_projects)}</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Rate / Hr</div><div class="stat-value" style="font-size:22px">${fmt$(stats.avg_rate)}</div></div>
+    <div class="stat-card"><div class="stat-label">Verified</div><div class="stat-value" style="font-size:22px;color:var(--success)">${fmt$(verifiedAmt)}</div><div class="stat-sub">vs ${fmt$(unverifiedAmt)} unverified</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">PM Analysis</h3>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">PM</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Avg Rate</th>
+        </tr></thead>
+        <tbody>${(stats.by_pm || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 8px">${r.pm_name || '—'}</td>
+          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
+          <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
+          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
+          <td style="text-align:right;padding:6px 8px">${r.hours > 0 ? fmt$(Math.round(r.amount/r.hours)) : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Industry Breakdown</h3>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Industry</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
+        </tr></thead>
+        <tbody>${(stats.by_industry || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 8px">${r.industry || '—'}</td>
+          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
+          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Team Member Analysis</h3>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+        <th style="text-align:left;padding:6px 8px;font-weight:600">Member</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
+      </tr></thead>
+      <tbody>${(stats.by_member || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:6px 8px">${r.member}</td>
+        <td style="text-align:right;padding:6px 8px">${r.projects}</td>
+        <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
+        <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Monthly Trend</h3>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Month</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
+        </tr></thead>
+        <tbody>${(stats.by_month || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 8px">${r.month}</td>
+          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
+          <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
+          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Category Breakdown</h3>
+      <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
+          <th style="text-align:left;padding:6px 8px;font-weight:600">Category</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
+          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
+        </tr></thead>
+        <tbody>${(stats.by_category || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:6px 8px">${r.category || '—'}</td>
+          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
+          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <h3 style="font-size:14px;font-weight:600">All Records (${records.length})</h3>
+      <div class="search-wrap" style="max-width:300px;flex:1">
+        <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input type="text" id="br-search" placeholder="Search records…" oninput="filterBillableRecords()" />
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+    <table id="br-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:900px">
+      <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted);position:sticky;top:0;background:var(--surface)">
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Date</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Company</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Case Code</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">PM</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Category</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Project</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Hours</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Rate</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600;white-space:nowrap">Amount</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Status</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Industry</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;white-space:nowrap">Verified</th>
+      </tr></thead>
+      <tbody id="br-tbody">${renderBillableRows(records)}</tbody>
+    </table>
+    </div>
+  </div>
+  `;
+
+  // store records for search
+  window._billableRecords = records;
+}
+
+function renderBillableRows(rows) {
+  if (!rows.length) return '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text-muted)">No records found</td></tr>';
+  return rows.map(r => `<tr style="border-bottom:1px solid var(--border)">
+    <td style="padding:5px 8px;white-space:nowrap">${r.date || '—'}</td>
+    <td style="padding:5px 8px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.company_name||''}">${r.company_name || '—'}</td>
+    <td style="padding:5px 8px;white-space:nowrap;font-family:monospace;font-size:11px">${r.case_code || '—'}</td>
+    <td style="padding:5px 8px;white-space:nowrap">${r.pm_name || '—'}</td>
+    <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.primary_category||''}">${r.primary_category || '—'}</td>
+    <td style="padding:5px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.project_name||''}">${r.project_name || '—'}</td>
+    <td style="text-align:right;padding:5px 8px">${r.billable_hours != null ? r.billable_hours : '—'}</td>
+    <td style="text-align:right;padding:5px 8px">${r.charge_rate != null ? fmtNum(r.charge_rate) : '—'}</td>
+    <td style="text-align:right;padding:5px 8px;font-weight:500">${r.total_amount != null ? fmt$(r.total_amount) : '—'}</td>
+    <td style="padding:5px 8px"><span style="padding:2px 8px;border-radius:99px;font-size:11px;background:${r.project_status==='Delivered'?'var(--success-light)':r.project_status==='Ongoing'?'var(--info-light)':'var(--border)'};color:${r.project_status==='Delivered'?'var(--success)':r.project_status==='Ongoing'?'var(--info)':'var(--text-muted)'}">${r.project_status||'—'}</span></td>
+    <td style="padding:5px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.industry || '—'}</td>
+    <td style="padding:5px 8px"><span style="color:${r.verified_payment==='Yes'?'var(--success)':'var(--text-muted)'};font-weight:500">${r.verified_payment || '—'}</span></td>
+  </tr>`).join('');
+}
+
+function filterBillableRecords() {
+  const q = ($('br-search')?.value || '').toLowerCase();
+  const rows = (window._billableRecords || []).filter(r =>
+    !q || [r.company_name, r.case_code, r.pm_name, r.project_name, r.primary_category, r.industry, r.project_status]
+      .some(v => v && v.toLowerCase().includes(q))
+  );
+  const tbody = $('br-tbody');
+  if (tbody) tbody.innerHTML = renderBillableRows(rows);
+}
+
+function applyBillableFilters() {
+  billableFilters.pm = $('bf-pm')?.value || '';
+  billableFilters.month = $('bf-month')?.value || '';
+  billableFilters.category = $('bf-category')?.value || '';
+  billableFilters.industry = $('bf-industry')?.value || '';
+  billableFilters.status = $('bf-status')?.value || '';
+  loadBillable();
+}
+
+function clearBillableFilters() {
+  billableFilters = { pm: '', month: '', category: '', industry: '', status: '' };
+  loadBillable();
+}
+
+async function importBillable() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx,.xls';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try {
+      const buf = await file.arrayBuffer();
+      const data = btoa(String.fromCharCode(...new Uint8Array(buf)));
+      const result = await api('POST', '/api/billable/import', { data });
+      alert(`Import complete: ${result.imported} new records, ${result.updated} updated.`);
+      loadBillable();
+    } catch (e) {
+      alert('Import failed: ' + e.message);
+    }
+  };
+  input.click();
 }
