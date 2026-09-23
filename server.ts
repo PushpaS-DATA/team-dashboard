@@ -1562,17 +1562,19 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
       `SELECT COALESCE(NULLIF(primary_category,''),'Unknown') as category, COUNT(*) as projects, COALESCE(SUM(total_amount),0) as amount
        FROM billable_records ${where} GROUP BY primary_category ORDER BY amount DESC`, args)).rows;
 
+    const dateCondition = where ? 'AND date IS NOT NULL AND date != \'\'' : 'WHERE date IS NOT NULL AND date != \'\'';
     const byMonth = (await query(
       `SELECT SUBSTRING(date,1,7) as month, COUNT(*) as projects, COALESCE(SUM(total_amount),0) as amount, COALESCE(SUM(billable_hours),0) as hours
-       FROM billable_records ${where} WHERE date IS NOT NULL AND date != '' GROUP BY SUBSTRING(date,1,7) ORDER BY month DESC`, args)).rows;
+       FROM billable_records ${where} ${dateCondition} GROUP BY SUBSTRING(date,1,7) ORDER BY month DESC`, args)).rows;
 
     const byStatus = (await query(
       `SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status, COUNT(*) as count
        FROM billable_records ${where} GROUP BY project_status ORDER BY count DESC`, args)).rows;
 
     // by_member: split team_members comma-separated
+    const memberCondition = where ? 'AND team_members IS NOT NULL AND team_members != \'\'' : 'WHERE team_members IS NOT NULL AND team_members != \'\'';
     const memberRows = (await query(
-      `SELECT team_members, billable_hours, total_amount FROM billable_records ${where} WHERE team_members IS NOT NULL AND team_members != ''`, args)).rows;
+      `SELECT team_members, billable_hours, total_amount FROM billable_records ${where} ${memberCondition}`, args)).rows;
     const memberMap: Record<string, { projects: number; hours: number; amount: number }> = {};
     for (const r of memberRows) {
       const names = (r.team_members as string).split(',').map((s: string) => s.trim()).filter(Boolean);

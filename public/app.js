@@ -3201,15 +3201,16 @@ function renderBillable(stats, records) {
   const root = $('billable-root');
   const isManager = currentUser && (currentUser.role === 'manager' || currentUser.is_admin);
 
-  // collect unique filter options
   const pms = [...new Set(records.map(r => r.pm_name).filter(Boolean))].sort();
   const cats = [...new Set(records.map(r => r.primary_category).filter(Boolean))].sort();
   const inds = [...new Set(records.map(r => r.industry).filter(Boolean))].sort();
   const statuses = [...new Set(records.map(r => r.project_status).filter(Boolean))].sort();
   const months = [...new Set(records.map(r => r.date ? r.date.slice(0,7) : '').filter(Boolean))].sort().reverse();
 
-  const verifiedAmt = (stats.verified || []).find(v => v.verified_payment === 'Yes')?.amount || 0;
-  const unverifiedAmt = (stats.verified || []).find(v => v.verified_payment !== 'Yes')?.amount || 0;
+  const verifiedAmt = +((stats.verified || []).find(v => v.verified_payment === 'Yes')?.amount || 0);
+  const unverifiedAmt = +((stats.verified || []).find(v => v.verified_payment !== 'Yes')?.amount || 0);
+  const totalVerif = verifiedAmt + unverifiedAmt;
+  const verifiedPct = totalVerif > 0 ? Math.round(verifiedAmt / totalVerif * 100) : 0;
 
   function opt(list, val, label) {
     return `<option value="">All ${label}</option>` + list.map(x => `<option value="${x}" ${x===val?'selected':''}>${x}</option>`).join('');
@@ -3218,123 +3219,132 @@ function renderBillable(stats, records) {
     return `<option value="">All Months</option>` + list.map(m => `<option value="${m}" ${m===val?'selected':''}>${m}</option>`).join('');
   }
 
+  const COLORS = ['#4f6ef7','#22c55e','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6','#a855f7','#fb923c'];
+
+  function hBarChart(data, labelKey, valueKey, formatter) {
+    if (!data || !data.length) return '<p style="color:var(--text-muted);font-size:13px;padding:8px 0">No data</p>';
+    const maxVal = Math.max(...data.map(r => +(r[valueKey]) || 0), 1);
+    return data.slice(0, 12).map((r, i) => {
+      const pct = Math.round((+(r[valueKey]) || 0) / maxVal * 100);
+      return `<div style="margin-bottom:9px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+          <span style="font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58%">${r[labelKey] || '—'}</span>
+          <span style="color:var(--text-muted);white-space:nowrap;margin-left:6px">${formatter(r[valueKey])}</span>
+        </div>
+        <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${COLORS[i % COLORS.length]};border-radius:4px"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function vBarChart(data) {
+    if (!data || !data.length) return '<p style="color:var(--text-muted);font-size:13px;padding:8px">No monthly data</p>';
+    const display = data.slice(0, 18).reverse();
+    const maxAmt = Math.max(...display.map(r => +(r.amount) || 0), 1);
+    const maxHrs = Math.max(...display.map(r => +(r.hours) || 0), 1);
+    const n = display.length;
+    const W = 600, H = 140, pad = 4;
+    const bw = Math.floor((W - pad * (n + 1)) / n);
+    const bars = display.map((r, i) => {
+      const h = Math.round((+(r.amount) || 0) / maxAmt * H);
+      const hh = Math.round((+(r.hours) || 0) / maxHrs * H);
+      const x = pad + i * (bw + pad);
+      const label = (r.month || '').slice(2); // "2026-01" → "26-01"
+      return `<g>
+        <rect x="${x}" y="${H - h}" width="${bw}" height="${h}" fill="#4f6ef7" rx="2" opacity="0.85">
+          <title>${r.month}: ${fmt$(r.amount)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title>
+        </rect>
+        <rect x="${x + Math.floor(bw*0.55)}" y="${H - hh}" width="${Math.floor(bw*0.35)}" height="${hh}" fill="#22c55e" rx="2" opacity="0.7">
+          <title>Hours: ${fmtNum(r.hours)}</title>
+        </rect>
+        <text x="${x + bw/2}" y="${H + 13}" text-anchor="middle" font-size="8" fill="var(--text-muted)">${label}</text>
+      </g>`;
+    }).join('');
+    return `<div>
+      <div style="display:flex;gap:12px;margin-bottom:8px;font-size:11px">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#4f6ef7;border-radius:2px;margin-right:4px"></span>Revenue</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:4px"></span>Hours</span>
+      </div>
+      <div style="overflow-x:auto">
+        <svg viewBox="0 0 ${W} ${H+18}" style="width:100%;min-width:280px;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
+      </div>
+    </div>`;
+  }
+
+  function donutChart() {
+    if (!totalVerif) return '<p style="color:var(--text-muted);font-size:13px">No data</p>';
+    const r = 38, cx = 50, cy = 50, sw = 16;
+    const circ = 2 * Math.PI * r;
+    const dash = circ * verifiedPct / 100;
+    const offset = circ * 0.25;
+    return `<div style="display:flex;align-items:center;gap:20px">
+      <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border)" stroke-width="${sw}"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#22c55e" stroke-width="${sw}"
+          stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+        <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">${verifiedPct}%</text>
+        <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="9" fill="var(--text-muted)">verified</text>
+      </svg>
+      <div style="font-size:12px;line-height:1.8">
+        <div><span style="color:#22c55e;font-weight:600">✔ Verified</span><br/><strong>${fmt$(verifiedAmt)}</strong></div>
+        <div style="margin-top:6px"><span style="color:var(--text-muted)">○ Pending</span><br/><strong>${fmt$(unverifiedAmt)}</strong></div>
+      </div>
+    </div>`;
+  }
+
+  const selStyle = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
+
   root.innerHTML = `
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:20px;background:var(--surface);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)">
-    <select id="bf-pm" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(pms,billableFilters.pm,'PMs')}</select>
-    <select id="bf-month" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${monthOpt(months,billableFilters.month)}</select>
-    <select id="bf-category" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(cats,billableFilters.category,'Categories')}</select>
-    <select id="bf-industry" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(inds,billableFilters.industry,'Industries')}</select>
-    <select id="bf-status" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">${opt(statuses,billableFilters.status,'Statuses')}</select>
+    <select id="bf-pm" style="${selStyle}">${opt(pms,billableFilters.pm,'PMs')}</select>
+    <select id="bf-month" style="${selStyle}">${monthOpt(months,billableFilters.month)}</select>
+    <select id="bf-category" style="${selStyle}">${opt(cats,billableFilters.category,'Categories')}</select>
+    <select id="bf-industry" style="${selStyle}">${opt(inds,billableFilters.industry,'Industries')}</select>
+    <select id="bf-status" style="${selStyle}">${opt(statuses,billableFilters.status,'Statuses')}</select>
     <button class="btn btn-primary" onclick="applyBillableFilters()" style="padding:6px 16px">Apply</button>
     <button class="btn btn-secondary" onclick="clearBillableFilters()" style="padding:6px 16px">Clear</button>
     ${isManager ? `<button class="btn btn-secondary" onclick="importBillable()" style="padding:6px 16px;margin-left:auto">↑ Import Excel</button>` : ''}
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
-    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="font-size:22px">${fmt$(stats.total_amount)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Hours</div><div class="stat-value" style="font-size:22px">${fmtNum(stats.total_hours)}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value" style="font-size:22px">${fmtNum(stats.total_projects)}</div></div>
-    <div class="stat-card"><div class="stat-label">Avg Rate / Hr</div><div class="stat-value" style="font-size:22px">${fmt$(stats.avg_rate)}</div></div>
-    <div class="stat-card"><div class="stat-label">Verified</div><div class="stat-value" style="font-size:22px;color:var(--success)">${fmt$(verifiedAmt)}</div><div class="stat-sub">vs ${fmt$(unverifiedAmt)} unverified</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px">
+    <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="font-size:20px">${fmt$(stats.total_amount)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Hours</div><div class="stat-value" style="font-size:20px">${fmtNum(stats.total_hours)}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Projects</div><div class="stat-value" style="font-size:20px">${fmtNum(stats.total_projects)}</div></div>
+    <div class="stat-card"><div class="stat-label">Avg Rate / Hr</div><div class="stat-value" style="font-size:20px">${fmt$(stats.avg_rate)}</div></div>
+    <div class="stat-card"><div class="stat-label">Payment Verified</div><div class="stat-value" style="font-size:20px;color:var(--success)">${verifiedPct}%</div><div class="stat-sub">${fmt$(verifiedAmt)} of ${fmt$(totalVerif)}</div></div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">PM Analysis</h3>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
-          <th style="text-align:left;padding:6px 8px;font-weight:600">PM</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Avg Rate</th>
-        </tr></thead>
-        <tbody>${(stats.by_pm || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:6px 8px">${r.pm_name || '—'}</td>
-          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
-          <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
-          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
-          <td style="text-align:right;padding:6px 8px">${r.hours > 0 ? fmt$(Math.round(r.amount/r.hours)) : '—'}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Monthly Revenue & Hours Trend</h3>
+      ${vBarChart(stats.by_month || [])}
     </div>
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Industry Breakdown</h3>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
-          <th style="text-align:left;padding:6px 8px;font-weight:600">Industry</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
-        </tr></thead>
-        <tbody>${(stats.by_industry || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:6px 8px">${r.industry || '—'}</td>
-          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
-          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:20px">
-    <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Team Member Analysis</h3>
-    <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
-        <th style="text-align:left;padding:6px 8px;font-weight:600">Member</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
-        <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
-      </tr></thead>
-      <tbody>${(stats.by_member || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:6px 8px">${r.member}</td>
-        <td style="text-align:right;padding:6px 8px">${r.projects}</td>
-        <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
-        <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
-      </tr>`).join('')}</tbody>
-    </table>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Payment Verification</h3>
+      ${donutChart()}
     </div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Monthly Trend</h3>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
-          <th style="text-align:left;padding:6px 8px;font-weight:600">Month</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Hours</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
-        </tr></thead>
-        <tbody>${(stats.by_month || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:6px 8px">${r.month}</td>
-          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
-          <td style="text-align:right;padding:6px 8px">${fmtNum(r.hours)}</td>
-          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by PM</h3>
+      ${hBarChart(stats.by_pm || [], 'pm_name', 'amount', fmt$)}
     </div>
     <div class="card">
-      <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Category Breakdown</h3>
-      <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr style="border-bottom:2px solid var(--border);color:var(--text-muted)">
-          <th style="text-align:left;padding:6px 8px;font-weight:600">Category</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Projects</th>
-          <th style="text-align:right;padding:6px 8px;font-weight:600">Revenue</th>
-        </tr></thead>
-        <tbody>${(stats.by_category || []).map(r => `<tr style="border-bottom:1px solid var(--border)">
-          <td style="padding:6px 8px">${r.category || '—'}</td>
-          <td style="text-align:right;padding:6px 8px">${r.projects}</td>
-          <td style="text-align:right;padding:6px 8px">${fmt$(r.amount)}</td>
-        </tr>`).join('')}</tbody>
-      </table>
-      </div>
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by Industry</h3>
+      ${hBarChart(stats.by_industry || [], 'industry', 'amount', fmt$)}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Revenue by Category</h3>
+      ${hBarChart(stats.by_category || [], 'category', 'amount', fmt$)}
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Hours by Team Member</h3>
+      ${hBarChart(stats.by_member || [], 'member', 'hours', fmtNum)}
     </div>
   </div>
 
@@ -3368,7 +3378,6 @@ function renderBillable(stats, records) {
   </div>
   `;
 
-  // store records for search
   window._billableRecords = records;
 }
 
