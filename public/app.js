@@ -769,7 +769,9 @@ document.addEventListener('click', e => {
     goalsFilter = btn.dataset.filter;
     renderGoals();
   }
-
+  if (!e.target.closest('[id$="-wrap"]')) {
+    document.querySelectorAll('[id$="-dd"]').forEach(d => d.style.display='none');
+  }
 });
 
 $('new-goal-btn').addEventListener('click', () => openGoalModal());
@@ -3234,6 +3236,17 @@ function renderBillable(stats, options) {
   function monthOpt(list, val) {
     return `<option value="">All Months</option>` + list.map(m => `<option value="${m}" ${m===val?'selected':''}>${m}</option>`).join('');
   }
+  function multiSelectHtml(id, items, selectedStr, label) {
+    const selected = selectedStr ? selectedStr.split(',').filter(Boolean) : [];
+    const btnTxt = selected.length ? `${selected.length} ${label} ▾` : `All ${label} ▾`;
+    const chks = items.map(x => `<label style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap;color:var(--text)"><input type="checkbox" value="${x}" ${selected.includes(x)?'checked':''}> ${x}</label>`).join('');
+    return `<div style="position:relative;display:inline-block" id="${id}-wrap">
+      <button type="button" id="${id}-btn" onclick="toggleBfDd('${id}')" style="${ss};cursor:pointer;white-space:nowrap;min-width:110px;text-align:left">${btnTxt}</button>
+      <div id="${id}-dd" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:#fff;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);max-height:220px;overflow-y:auto;min-width:160px">
+        ${chks}
+      </div>
+    </div>`;
+  }
   function shorten(n) {
     n = +n || 0;
     if (n >= 10000000) return `₹${(n/10000000).toFixed(1)}Cr`;
@@ -3383,8 +3396,8 @@ function renderBillable(stats, options) {
 
   root.innerHTML = `
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;background:var(--surface);padding:10px 14px;border-radius:10px;border:1px solid var(--border)">
-    <select id="bf-pm" style="${ss}">${opt(pms,billableFilters.pm,'PMs')}</select>
-    <select id="bf-month" style="${ss}">${monthOpt(months,billableFilters.month)}</select>
+    ${multiSelectHtml('bf-pm', pms, billableFilters.pm, 'PMs')}
+    ${multiSelectHtml('bf-month', months, billableFilters.month, 'Months')}
     <select id="bf-category" style="${ss}">${opt(cats,billableFilters.category,'Categories')}</select>
     <select id="bf-industry" style="${ss}">${opt(inds,billableFilters.industry,'Industries')}</select>
     <select id="bf-status" style="${ss}">${opt(statuses,billableFilters.status,'Statuses')}</select>
@@ -3401,19 +3414,19 @@ function renderBillable(stats, options) {
     ${card('Trend Analysis — Monthly Revenue & Hours', monthlyChart(stats.by_month||[]))}
   </div>
 
-  <!-- 3. PM Performance + Client Analysis -->
+  <!-- 3. PM Performance + Team Member -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
     ${(()=>{
       const ALLOWED_PMS = ['Aditi','Ali','Anchal','Hema','Jayant','Jisha','Nidhi','Parth','Shweta','Soumya'];
       const filteredPMs = (stats.by_pm||[]).filter(r => ALLOWED_PMS.some(n => (r.pm_name||'').trim().startsWith(n)));
       return card('PM Performance — Revenue & Hours', barRows(filteredPMs, 'pm_name', 'amount', 'hours', 10));
     })()}
-    ${card('Client Analysis — Revenue Contribution', clientRows(stats.by_client||[]))}
+    ${card('Client Analysis', clientRows(stats.by_client||[]))}
   </div>
 
-  <!-- 4. Team Member + Project Status -->
+  <!-- 4. Company Analysis + Project Status -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-    ${card('Team / Employee Analysis', barRows(stats.by_member||[], 'member', 'amount', 'hours'))}
+    ${card('Company-wise Revenue', clientRows(stats.by_client||[]))}
     ${card('Project Status / Pipeline', statusChart(stats.by_status||[]))}
   </div>
 
@@ -3426,9 +3439,23 @@ function renderBillable(stats, options) {
 }
 
 
+function toggleBfDd(id) {
+  const dd = document.getElementById(id+'-dd');
+  if (!dd) return;
+  const isOpen = dd.style.display !== 'none';
+  document.querySelectorAll('[id$="-dd"]').forEach(d => d.style.display='none');
+  if (!isOpen) dd.style.display = 'block';
+}
+
+function getMultiValues(id) {
+  const dd = document.getElementById(id+'-dd');
+  if (!dd) return '';
+  return [...dd.querySelectorAll('input[type=checkbox]:checked')].map(c=>c.value).join(',');
+}
+
 function applyBillableFilters() {
-  billableFilters.pm = $('bf-pm')?.value || '';
-  billableFilters.month = $('bf-month')?.value || '';
+  billableFilters.pm = getMultiValues('bf-pm');
+  billableFilters.month = getMultiValues('bf-month');
   billableFilters.category = $('bf-category')?.value || '';
   billableFilters.industry = $('bf-industry')?.value || '';
   billableFilters.status = $('bf-status')?.value || '';

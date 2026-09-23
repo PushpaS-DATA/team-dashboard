@@ -1522,8 +1522,16 @@ function buildBillableWhere(params: any): { where: string; args: any[] } {
   const conditions: string[] = [];
   const args: any[] = [];
   let idx = 1;
-  if (params.pm) { conditions.push(`pm_name ILIKE $${idx++}`); args.push(`%${params.pm}%`); }
-  if (params.month) { conditions.push(`date LIKE $${idx++}`); args.push(`${params.month}%`); }
+  if (params.pm) {
+    const pms = (Array.isArray(params.pm) ? params.pm.join(',') : String(params.pm)).split(',').map((s:string)=>s.trim()).filter(Boolean);
+    if (pms.length === 1) { conditions.push(`pm_name ILIKE $${idx++}`); args.push(`%${pms[0]}%`); }
+    else { conditions.push(`(${pms.map(()=>`pm_name ILIKE $${idx++}`).join(' OR ')})`); pms.forEach((p:string)=>args.push(`%${p}%`)); }
+  }
+  if (params.month) {
+    const months = (Array.isArray(params.month) ? params.month.join(',') : String(params.month)).split(',').map((s:string)=>s.trim()).filter(Boolean);
+    if (months.length === 1) { conditions.push(`date LIKE $${idx++}`); args.push(`${months[0]}%`); }
+    else { conditions.push(`(${months.map(()=>`date LIKE $${idx++}`).join(' OR ')})`); months.forEach((m:string)=>args.push(`${m}%`)); }
+  }
   if (params.category) { conditions.push(`(primary_category ILIKE $${idx} OR secondary_category ILIKE $${idx})`); idx++; args.push(`%${params.category}%`); }
   if (params.industry) { conditions.push(`industry ILIKE $${idx++}`); args.push(`%${params.industry}%`); }
   if (params.status) { conditions.push(`project_status ILIKE $${idx++}`); args.push(`%${params.status}%`); }
