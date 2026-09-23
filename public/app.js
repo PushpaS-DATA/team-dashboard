@@ -3312,21 +3312,34 @@ function renderBillable(stats, options) {
     if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
     const display = data.slice(0,10).reverse();
     const maxAmt = Math.max(...display.map(r=>+(r.amount)||0),1);
-    const BW=50, GAP=10, H=140, W=display.length*(BW+GAP)+GAP;
+    const maxHrs = Math.max(...display.map(r=>+(r.hours)||0),1);
+    const BW=22, GAP=3, GRP=18, H=140;
+    const groupW = BW*2 + GAP;
+    const W = display.length*(groupW+GRP)+GRP;
     const bars = display.map((r,i)=>{
-      const amt=+(r.amount)||0, bh=Math.max(Math.round(amt/maxAmt*H),2);
-      const x=GAP+i*(BW+GAP);
+      const amt=+(r.amount)||0, hrs=+(r.hours)||0;
+      const ah=Math.max(Math.round(amt/maxAmt*H),2);
+      const hh=Math.max(Math.round(hrs/maxHrs*H),2);
+      const gx=GRP+i*(groupW+GRP);
       const parts=(r.month||'').split('-');
       const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
       return `<g>
-        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="5" opacity="0.9"><title>${r.month}: ${fmt$(amt)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title></rect>
-        <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="8" fill="#6b7280">${shorten(amt)}</text>
-        <text x="${x+BW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
+        <rect x="${gx}" y="${H-ah}" width="${BW}" height="${ah}" fill="${C1}" rx="3" opacity="0.9"><title>Revenue: ${fmt$(amt)}</title></rect>
+        <text x="${gx+BW/2}" y="${H-ah-4}" text-anchor="middle" font-size="7.5" fill="#6b7280">${shorten(amt)}</text>
+        <rect x="${gx+BW+GAP}" y="${H-hh}" width="${BW}" height="${hh}" fill="${C2}" rx="3" opacity="0.85"><title>Hours: ${fmtNum(hrs)}</title></rect>
+        <text x="${gx+BW+GAP+BW/2}" y="${H-hh-4}" text-anchor="middle" font-size="7.5" fill="#6b7280">${fmtNum(hrs)}h</text>
+        <text x="${gx+groupW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
       </g>`;
     }).join('');
-    return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+18}" style="width:100%;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${bars}
-    </svg></div>`;
+    return `<div>
+      <div style="display:flex;gap:14px;margin-bottom:8px;font-size:11px;color:#6b7280">
+        <span><span style="display:inline-block;width:10px;height:10px;background:${C1};border-radius:2px;margin-right:4px;vertical-align:middle"></span>Revenue</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:${C2};border-radius:2px;margin-right:4px;vertical-align:middle"></span>Hours</span>
+      </div>
+      <div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+18}" style="width:100%;min-width:${Math.min(W,300)}px;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>${bars}
+      </svg></div>
+    </div>`;
   }
 
   function statusChart(data) {
