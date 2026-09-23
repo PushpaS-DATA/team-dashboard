@@ -3241,110 +3241,121 @@ function renderBillable(stats, options) {
     return fmt$(n);
   }
 
-  // Dual horizontal bar: revenue (teal) + hours (green) per row
-  function dualBar(data, labelKey) {
-    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px 0">No data</p>';
-    const maxAmt = Math.max(...data.map(r => +(r.amount)||0), 1);
-    const maxHrs = Math.max(...data.map(r => +(r.hours)||0), 1);
-    return data.slice(0,12).map(r => {
-      const aPct = Math.round((+(r.amount)||0)/maxAmt*100);
-      const hPct = r.hours != null ? Math.round((+(r.hours)||0)/maxHrs*100) : -1;
-      return `<div style="margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;color:#222;margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r[labelKey]||'—'}</div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-          <span style="font-size:10px;color:#888;width:52px;text-align:right;flex-shrink:0">Revenue</span>
-          <div style="flex:1;height:9px;background:${TRACK};border-radius:5px;overflow:hidden">
-            <div style="height:100%;width:${aPct}%;background:${C1};border-radius:5px"></div>
-          </div>
-          <span style="font-size:11px;color:#444;white-space:nowrap;min-width:64px">${shorten(r.amount)}</span>
-        </div>
-        ${hPct >= 0 ? `<div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:10px;color:#888;width:52px;text-align:right;flex-shrink:0">Hours</span>
-          <div style="flex:1;height:7px;background:${TRACK};border-radius:5px;overflow:hidden">
-            <div style="height:100%;width:${hPct}%;background:${C2};border-radius:5px"></div>
-          </div>
-          <span style="font-size:11px;color:#444;white-space:nowrap;min-width:64px">${fmtNum(r.hours)} hrs</span>
-        </div>` : ''}
-      </div>`;
-    }).join('');
-  }
-
-  // Single bar (for industry/category — no hours available)
-  function singleBar(data, labelKey, valKey, formatter, color) {
-    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px 0">No data</p>';
-    const maxVal = Math.max(...data.map(r => +(r[valKey])||0), 1);
-    return data.slice(0,12).map(r => {
-      const pct = Math.round((+(r[valKey])||0)/maxVal*100);
-      return `<div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-          <span style="font-weight:500;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:62%">${r[labelKey]||'—'}</span>
-          <span style="color:#666;white-space:nowrap;margin-left:6px">${formatter(r[valKey])}</span>
-        </div>
-        <div style="height:8px;background:${TRACK};border-radius:5px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${color};border-radius:5px"></div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  // Vertical bar chart for monthly trend
   const MNAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function vBarChart(data) {
-    if (!data || !data.length) return '<p style="color:#888;font-size:13px;padding:8px">No data</p>';
-    const display = data.slice(0,12).reverse();
-    const maxAmt = Math.max(...display.map(r => +(r.amount)||0), 1);
-    const n = display.length;
-    const BW = 48, GAP = 14, H = 150;
-    const W = n*(BW+GAP)+GAP;
-    const bars = display.map((r,i) => {
-      const amt = +(r.amount)||0;
-      const bh = Math.round(amt/maxAmt*H);
-      const x = GAP + i*(BW+GAP);
-      const parts = (r.month||'').split('-');
-      const ml = parts.length===2 ? `${MNAMES[+parts[1]-1]||parts[1]} '${parts[0].slice(2)}` : r.month;
-      const vl = shorten(amt);
+
+  // Compact horizontal bar row
+  function barRow(label, value, pct, valStr, color) {
+    return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6">
+      <span style="font-size:12px;font-weight:500;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>
+      <span style="font-size:12px;font-weight:700;color:${color};text-align:right;white-space:nowrap">${valStr}</span>
+      <div style="height:12px;background:#e9f5f2;border-radius:6px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:6px"></div>
+      </div>
+      <span style="font-size:11px;color:#9ca3af;text-align:right">${pct}%</span>
+    </div>`;
+  }
+
+  function pmChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const top = data.slice(0,6);
+    const maxAmt = Math.max(...top.map(r=>+(r.amount)||0),1);
+    return top.map(r => barRow(r.pm_name||'—', r.amount, Math.round((+(r.amount)||0)/maxAmt*100), shorten(r.amount), C1)).join('');
+  }
+
+  function memberChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const top = data.slice(0,6);
+    const maxHrs = Math.max(...top.map(r=>+(r.hours)||0),1);
+    return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;gap:10px;padding:0 0 6px;border-bottom:2px solid #e9f5f2;margin-bottom:4px">
+      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">Member</span>
+      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;text-align:right">Revenue</span>
+      <span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase">Hours</span>
+      <span></span>
+    </div>` + top.map(r => {
+      const pct = Math.round((+(r.hours)||0)/maxHrs*100);
+      return `<div style="display:grid;grid-template-columns:140px 70px 1fr 44px;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6">
+        <span style="font-size:12px;font-weight:500;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.member||'—'}</span>
+        <span style="font-size:12px;font-weight:700;color:${C1};text-align:right;white-space:nowrap">${shorten(r.amount)}</span>
+        <div style="height:12px;background:#e9f5f2;border-radius:6px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${C2};border-radius:6px"></div>
+        </div>
+        <span style="font-size:11px;color:#9ca3af;text-align:right">${fmtNum(r.hours)}h</span>
+      </div>`;
+    }).join('');
+  }
+
+  function industryChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const top = data.slice(0,6);
+    const maxAmt = Math.max(...top.map(r=>+(r.amount)||0),1);
+    return top.map(r => barRow(r.industry||'Unknown', r.amount, Math.round((+(r.amount)||0)/maxAmt*100), shorten(r.amount), C2)).join('');
+  }
+
+  function monthlyChart(data) {
+    if (!data||!data.length) return '<p style="color:#9ca3af;font-size:13px">No data</p>';
+    const display = data.slice(0,8).reverse();
+    const maxAmt = Math.max(...display.map(r=>+(r.amount)||0),1);
+    const BW=52, GAP=12, H=130, W=display.length*(BW+GAP)+GAP;
+    const bars = display.map((r,i)=>{
+      const amt=+(r.amount)||0, bh=Math.round(amt/maxAmt*H);
+      const x=GAP+i*(BW+GAP);
+      const parts=(r.month||'').split('-');
+      const ml=parts.length===2?`${MNAMES[+parts[1]-1]||''} '${parts[0].slice(2)}`:r.month;
       return `<g>
-        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="4" opacity="0.9">
-          <title>${r.month}: ${fmt$(amt)}, ${fmtNum(r.hours)} hrs, ${r.projects} projects</title>
-        </rect>
-        <text x="${x+BW/2}" y="${H-bh-5}" text-anchor="middle" font-size="8" fill="#666">${vl}</text>
-        <text x="${x+BW/2}" y="${H+14}" text-anchor="middle" font-size="9" fill="#888">${ml}</text>
+        <rect x="${x}" y="${H-bh}" width="${BW}" height="${bh}" fill="${C1}" rx="5" opacity="0.92"><title>${r.month}: ${fmt$(amt)}</title></rect>
+        <text x="${x+BW/2}" y="${H-bh-4}" text-anchor="middle" font-size="8.5" fill="#6b7280">${shorten(amt)}</text>
+        <text x="${x+BW/2}" y="${H+13}" text-anchor="middle" font-size="9" fill="#9ca3af">${ml}</text>
       </g>`;
     }).join('');
-    return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+22}" style="width:100%;min-width:${Math.min(W,260)}px;height:${H+22}px" xmlns="http://www.w3.org/2000/svg">
-      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#ddd" stroke-width="1"/>
+    return `<div style="overflow-x:auto"><svg viewBox="0 0 ${W} ${H+18}" style="width:100%;height:${H+18}px" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="#e5e7eb" stroke-width="1"/>
       ${bars}
     </svg></div>`;
   }
 
-  // Donut for verification
-  function donutChart() {
-    if (!totalVerif) return '<p style="color:#888;font-size:13px">No data</p>';
-    const R=44,cx=60,cy=60,sw=18, circ=2*Math.PI*R;
-    const dash=circ*verifiedPct/100, offset=circ*0.25;
-    return `<div style="display:flex;align-items:center;gap:24px">
-      <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${TRACK}" stroke-width="${sw}"/>
+  function verifiedDonut() {
+    const R=46,cx=60,cy=60,sw=16,circ=2*Math.PI*R;
+    const dash=circ*verifiedPct/100,offset=circ*.25;
+    return `<div style="display:flex;align-items:center;gap:20px">
+      <svg width="120" height="120" viewBox="0 0 120 120" style="flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#e9f5f2" stroke-width="${sw}"/>
         <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${C2}" stroke-width="${sw}"
           stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
-        <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a1a">${verifiedPct}%</text>
-        <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="10" fill="#888">Verified</text>
+        <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">${verifiedPct}%</text>
+        <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="10" fill="#9ca3af">Verified</text>
       </svg>
-      <div style="font-size:13px;line-height:2">
-        <div style="color:${C1};font-weight:600">✔ Verified</div>
-        <div style="font-weight:700;font-size:15px">${fmt$(verifiedAmt)}</div>
-        <div style="color:#999;margin-top:6px">○ Pending</div>
-        <div style="font-weight:700;font-size:15px">${fmt$(unverifiedAmt)}</div>
+      <div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Verified</div>
+          <div style="font-size:16px;font-weight:700;color:${C2}">${fmt$(verifiedAmt)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Pending</div>
+          <div style="font-size:16px;font-weight:700;color:#d1d5db">${fmt$(unverifiedAmt)}</div>
+        </div>
       </div>
     </div>`;
   }
 
   const ss = `padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px`;
-  const cardStyle = `background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px`;
-  const headStyle = `font-size:13px;font-weight:700;color:#1a1a1a;margin:0 0 14px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid ${C2};padding-bottom:8px`;
+  const card = (content, title='') => `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px">
+    ${title ? `<div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e9f5f2">${title}</div>` : ''}
+    ${content}
+  </div>`;
+
+  const kpis = [
+    ['Total Revenue', fmt$(stats.total_amount)],
+    ['Total Hours', fmtNum(stats.total_hours)+' hrs'],
+    ['Total Projects', fmtNum(stats.total_projects)],
+    ['Avg Rate / Hr', fmt$(stats.avg_rate)],
+    ['Payment Verified', verifiedPct+'%'],
+  ].map(([l,v],i) => `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;border-left:4px solid ${i<4?C1:C2}">
+    <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${l}</div>
+    <div style="font-size:22px;font-weight:800;color:${i<4?C1:C2}">${v}</div>
+  </div>`).join('');
 
   root.innerHTML = `
-  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:20px;background:var(--surface);padding:12px 16px;border-radius:var(--radius);border:1px solid var(--border)">
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px;background:var(--surface);padding:10px 14px;border-radius:10px;border:1px solid var(--border)">
     <select id="bf-pm" style="${ss}">${opt(pms,billableFilters.pm,'PMs')}</select>
     <select id="bf-month" style="${ss}">${monthOpt(months,billableFilters.month)}</select>
     <select id="bf-category" style="${ss}">${opt(cats,billableFilters.category,'Categories')}</select>
@@ -3355,51 +3366,21 @@ function renderBillable(stats, options) {
     ${isManager ? `<button class="btn btn-secondary" onclick="importBillable()" style="padding:6px 16px;margin-left:auto">↑ Import Excel</button>` : ''}
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px">
-    ${[
-      ['Total Revenue', fmt$(stats.total_amount), C1],
-      ['Total Hours', fmtNum(stats.total_hours)+' hrs', C1],
-      ['Total Projects', fmtNum(stats.total_projects), C1],
-      ['Avg Rate / Hr', fmt$(stats.avg_rate), C1],
-      ['Payment Verified', verifiedPct+'%', C2],
-    ].map(([label,val,col]) => `
-      <div style="${cardStyle};border-top:4px solid ${col}">
-        <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${label}</div>
-        <div style="font-size:20px;font-weight:700;color:${col}">${val}</div>
-      </div>`).join('')}
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">${kpis}</div>
+
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px">
+    ${card(monthlyChart(stats.by_month||[]), 'Monthly Revenue Trend')}
+    ${card(verifiedDonut(), 'Payment Verification')}
   </div>
 
-  <div style="display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px">
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">Monthly Revenue Trend</h3>
-      ${vBarChart(stats.by_month||[])}
-    </div>
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">Payment Verification</h3>
-      ${donutChart()}
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    ${card(pmChart(stats.by_pm||[]), 'Top PMs by Revenue')}
+    ${card(memberChart(stats.by_member||[]), 'Top Team Members')}
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">PM Performance</h3>
-      ${dualBar(stats.by_pm||[], 'pm_name')}
-    </div>
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">Team Member Performance</h3>
-      ${dualBar(stats.by_member||[], 'member')}
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">Revenue by Industry</h3>
-      ${singleBar(stats.by_industry||[], 'industry', 'amount', shorten, C1)}
-    </div>
-    <div style="${cardStyle}">
-      <h3 style="${headStyle}">Revenue by Category</h3>
-      ${singleBar(stats.by_category||[], 'category', 'amount', shorten, C2)}
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    ${card(industryChart(stats.by_industry||[]), 'Revenue by Industry')}
+    ${card(industryChart(stats.by_category||[].map(r=>({...r,industry:r.category}))), 'Revenue by Category')}
   </div>
   `;
 }
