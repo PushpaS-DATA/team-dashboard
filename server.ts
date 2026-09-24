@@ -1577,10 +1577,16 @@ app.get('/api/billable/stats', requireAuth, async (req, res) => {
        FROM billable_records ${where} ${dateCondition} GROUP BY SUBSTRING(date,1,7) ORDER BY month DESC`, args)).rows;
 
     const byStatus = (await query(
-      `SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status,
+      `WITH latest AS (
+         SELECT DISTINCT ON (project_name) project_name, project_status
+         FROM billable_records
+         ${where ? where + ' AND' : 'WHERE'} project_name IS NOT NULL AND project_name != ''
+         ORDER BY project_name, date DESC NULLS LAST
+       )
+       SELECT COALESCE(NULLIF(project_status,''),'Unknown') as status,
               COUNT(*) as count,
-              COUNT(DISTINCT NULLIF(project_name,'')) as projects
-       FROM billable_records ${where} GROUP BY project_status ORDER BY count DESC`, args)).rows;
+              COUNT(*) as projects
+       FROM latest GROUP BY project_status ORDER BY count DESC`, args)).rows;
 
     // by_member: split team_members comma-separated
     const memberCondition = where ? 'AND team_members IS NOT NULL AND team_members != \'\'' : 'WHERE team_members IS NOT NULL AND team_members != \'\'';
